@@ -14,14 +14,22 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.automirrored.filled.Subject
 import androidx.compose.material.icons.filled.Bluetooth
@@ -29,11 +37,16 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -46,16 +59,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.efugu.open.ble.DeviceColors
+import com.efugu.open.ble.DeviceUserPairing
+import com.efugu.open.ble.UserProfile
 import com.efugu.open.ble.DeviceConnection
 import com.efugu.open.ble.DeviceConnectionState
 import com.efugu.open.ble.EFuguViewModel
+import com.efugu.open.exercise.ConstantEqScreen
+import com.efugu.open.exercise.MinEqExerciseScreen
+import com.efugu.open.game.FuguCaveScreen
+import com.efugu.open.game.FuguFeastScreen
+import com.efugu.open.game.FuguFlowScreen
 import com.efugu.open.game.FuguReefScreen
+import com.efugu.open.game.MultiplayerFuguReefScreen
+import com.efugu.open.game.MultiplayerPlayerInfo
+import com.efugu.open.game.drawEnemyFish
 import com.efugu.open.game.drawFugu
 import com.efugu.open.ble.PressureReading
 import com.efugu.open.ble.SavedDevice
 import com.efugu.open.ble.ScanState
 import com.efugu.open.ble.ScannedDevice
 import com.efugu.open.ble.formatHPa
+import com.efugu.open.session.SessionViewerScreen
+import com.efugu.open.ui.AppColors
+import com.efugu.open.ui.UserDetailScreen
+import com.efugu.open.ui.CalibrationWizard
 import com.efugu.open.ui.theme.OpenFuguTheme
 
 class MainActivity : ComponentActivity() {
@@ -112,44 +140,197 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    var isGameActive by remember { mutableStateOf(false) }
+    var activeGame by remember { mutableStateOf<String?>(null) }
+    var activeGameDeviceAddress by remember { mutableStateOf<String?>(null) }
+    var activeGameDeviceAddresses by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showLogs by remember { mutableStateOf(false) }
+    var showUserDetail by remember { mutableStateOf<String?>(null) }
+    var calibratingUserId by remember { mutableStateOf<String?>(null) }
+    var viewingSessionId by remember { mutableStateOf<String?>(null) }
 
     val connections by viewModel.connections.collectAsState()
     val scanState by viewModel.scanState.collectAsState()
     val savedDevices by viewModel.savedDevices.collectAsState()
     val scannedDevices by viewModel.scannedDevices.collectAsState()
     val logMessages by viewModel.logMessages.collectAsState()
+    val userProfiles by viewModel.userProfiles.collectAsState()
+    val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
+    val recentSessions by viewModel.recentSessions.collectAsState()
 
     // Auto-start scan on first composition
     LaunchedEffect(Unit) {
         onRequestPermissionsAndScan()
     }
 
-    // Switch to Live tab when first device connects
-    LaunchedEffect(connections.size) {
-        if (connections.isNotEmpty() && selectedTab == 3) {
-            selectedTab = 0
+
+    // Full-screen logs
+    if (showLogs) {
+        BackHandler { showLogs = false }
+        Scaffold(
+            topBar = {
+                @OptIn(ExperimentalMaterial3Api::class)
+                TopAppBar(
+                    title = { Text("Logs") },
+                    navigationIcon = {
+                        IconButton(onClick = { showLogs = false }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            LogsTab(logMessages = logMessages, modifier = Modifier.padding(padding))
+        }
+        return
+    }
+
+    // Full-screen user detail
+    if (showUserDetail != null) {
+        BackHandler { showUserDetail = null }
+        UserDetailScreen(
+            viewModel = viewModel,
+            userId = showUserDetail!!,
+            onBack = { showUserDetail = null },
+            onStartCalibration = { userId ->
+                showUserDetail = null
+                calibratingUserId = userId
+            },
+            onDeleted = { showUserDetail = null }
+        )
+        return
+    }
+
+    // Full-screen session viewer
+    if (viewingSessionId != null) {
+        BackHandler { viewingSessionId = null }
+        SessionViewerScreen(
+            viewModel = viewModel,
+            sessionId = viewingSessionId!!,
+            onBack = { viewingSessionId = null }
+        )
+        return
+    }
+
+    // Full-screen calibration wizard
+    if (calibratingUserId != null) {
+        val returnToUser = calibratingUserId
+        BackHandler {
+            calibratingUserId = null
+            showUserDetail = returnToUser
+        }
+        CalibrationWizard(
+            viewModel = viewModel,
+            userId = calibratingUserId!!,
+            connections = connections,
+            onBack = {
+                calibratingUserId = null
+                showUserDetail = returnToUser
+            },
+            onComplete = {
+                calibratingUserId = null
+                showUserDetail = returnToUser
+            }
+        )
+        return
+    }
+
+    // Multiplayer game routing
+    if (activeGame == "multiplayer_reef" && activeGameDeviceAddresses.isNotEmpty() && selectedTab == 1) {
+        val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
+        val onSaveSession = { session: com.efugu.open.session.Session -> viewModel.saveSession(session) }
+        BackHandler { onGameBack() }
+        val playerInfos = activeGameDeviceAddresses.mapNotNull { addr ->
+            val conn = connections[addr] ?: return@mapNotNull null
+            val saved = savedDevices.find { it.address == addr } ?: return@mapNotNull null
+            val profile = viewModel.userForDevice(addr)
+            val color = saved.colorArgb?.let { Color(it.toInt()) }
+                ?: Color(com.efugu.open.ble.DeviceColors.presets[activeGameDeviceAddresses.indexOf(addr) % com.efugu.open.ble.DeviceColors.presets.size].toInt())
+            MultiplayerPlayerInfo(
+                connection = conn,
+                userProfile = profile,
+                savedDevice = saved,
+                color = color,
+                displayName = saved.displayName,
+                userName = profile?.name
+            )
+        }
+        if (playerInfos.size >= 2) {
+            MultiplayerFuguReefScreen(
+                players = playerInfos,
+                onBack = onGameBack,
+                onSessionSave = onSaveSession
+            )
+            return
+        } else {
+            activeGame = null
+            activeGameDeviceAddresses = emptyList()
         }
     }
 
     // When a game is active, render it full-screen (no top/bottom bars)
-    if (isGameActive && selectedTab == 1) {
-        val connection = connections.values.firstOrNull()
+    if (activeGame != null && selectedTab == 1) {
+        val connection = activeGameDeviceAddress?.let { connections[it] }
+            ?: connections.values.firstOrNull { it.state.value is DeviceConnectionState.Connected }
         if (connection != null) {
-            BackHandler { isGameActive = false }
-            FuguReefScreen(
-                connection = connection,
-                onBack = { isGameActive = false }
-            )
+            BackHandler { activeGame = null; activeGameDeviceAddress = null }
+            val userProfile = viewModel.userForDevice(connection.address)
+            val range = userProfile?.gamePressureRange ?: 40.0
+            val negRange = userProfile?.gameNegativeRange ?: 0.0
+            val expert = userProfile?.expertMode ?: false
+            val savedDevice = savedDevices.find { it.address == connection.address }
+            val deviceColor = savedDevice?.colorArgb?.let { Color(it.toInt()) }
+            val devName = savedDevice?.displayName ?: connection.displayName
+            val usrName = userProfile?.name
+            val onGameBack = { activeGame = null; activeGameDeviceAddress = null }
+            val onSaveSession = { session: com.efugu.open.session.Session -> viewModel.saveSession(session) }
+            when (activeGame) {
+                "reef" -> FuguReefScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
+                "feast" -> FuguFeastScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
+                "cave" -> FuguCaveScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
+                "flow" -> FuguFlowScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
+                "min_eq" -> MinEqExerciseScreen(
+                    connection = connection,
+                    lineColor = deviceColor,
+                    userProfiles = userProfiles,
+                    currentProfileId = userProfile?.id,
+                    deviceName = devName,
+                    userName = usrName,
+                    onSave = { profileId, minEqHPa ->
+                        val profile = userProfiles.find { it.id == profileId }
+                        if (profile != null) {
+                            viewModel.updateUser(profile.copy(minEqPressureHPa = minEqHPa))
+                        }
+                    },
+                    onSessionSave = onSaveSession,
+                    onBack = onGameBack
+                )
+                "constant_eq" -> ConstantEqScreen(
+                    connection = connection,
+                    lineColor = deviceColor,
+                    minEqPressureHPa = userProfile?.minEqPressureHPa ?: 15.0,
+                    deviceName = devName,
+                    userName = usrName,
+                    onSessionSave = onSaveSession,
+                    onBack = onGameBack
+                )
+            }
             return
         } else {
-            isGameActive = false
+            activeGame = null
+            activeGameDeviceAddress = null
         }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("OpenFugu") })
+            TopAppBar(
+                title = { Text("OpenFugu") },
+                actions = {
+                    IconButton(onClick = { showLogs = true }) {
+                        Icon(Icons.AutoMirrored.Filled.Subject, contentDescription = "Logs")
+                    }
+                }
+            )
         },
         bottomBar = {
             NavigationBar {
@@ -184,12 +365,19 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
                 NavigationBarItem(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.AutoMirrored.Filled.Subject, contentDescription = "Logs") },
-                    label = { Text("Logs") }
+                    icon = { Icon(Icons.Filled.Person, contentDescription = "Users") },
+                    label = { Text("Users") }
                 )
             }
         }
     ) { padding ->
+        // Auto-scan while on Devices tab; stop when leaving
+        DisposableEffect(selectedTab) {
+            if (selectedTab == 2) viewModel.startScan()
+            onDispose {
+                if (selectedTab == 2) viewModel.stopScan()
+            }
+        }
         when (selectedTab) {
             0 -> LiveTab(
                 connections = connections,
@@ -197,8 +385,22 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
                 modifier = Modifier.padding(padding)
             )
             1 -> ExercisesTab(
-                connection = connections.values.firstOrNull(),
-                onGameStart = { isGameActive = true },
+                connections = connections,
+                savedDevices = savedDevices,
+                userProfiles = userProfiles,
+                deviceUserPairings = deviceUserPairings,
+                recentSessions = recentSessions,
+                onGameStart = { game, conn ->
+                    activeGame = game
+                    activeGameDeviceAddress = conn.address
+                },
+                onMultiplayerGameStart = { game, conns ->
+                    activeGame = game
+                    activeGameDeviceAddresses = conns.map { it.address }
+                },
+                onSessionClick = { sessionId -> viewingSessionId = sessionId },
+                onDeleteSession = { sessionId -> viewModel.deleteSession(sessionId) },
+                onPairUser = { addr, userId -> viewModel.pairDeviceToUser(addr, userId) },
                 modifier = Modifier.padding(padding)
             )
             2 -> DevicesTab(
@@ -206,16 +408,24 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
                 savedDevices = savedDevices,
                 scannedDevices = scannedDevices,
                 connections = connections,
+                userProfiles = userProfiles,
+                deviceUserPairings = deviceUserPairings,
                 onScan = onRequestPermissionsAndScan,
                 onStopScan = { viewModel.stopScan() },
                 onConnect = { viewModel.connectToDevice(it) },
                 onDisconnect = { viewModel.disconnectDevice(it) },
                 onForget = { viewModel.forgetDevice(it) },
                 onNicknameSet = { addr, name -> viewModel.setNickname(addr, name) },
+                onColorSet = { addr, color -> viewModel.setColor(addr, color) },
+                onPairUser = { addr, userId -> viewModel.pairDeviceToUser(addr, userId) },
                 modifier = Modifier.padding(padding)
             )
-            3 -> LogsTab(
-                logMessages = logMessages,
+            3 -> UsersTab(
+                userProfiles = userProfiles,
+                savedDevices = savedDevices,
+                deviceUserPairings = deviceUserPairings,
+                onAddUser = { name -> viewModel.addUser(name) },
+                onSelectUser = { userId -> showUserDetail = userId },
                 modifier = Modifier.padding(padding)
             )
         }
@@ -281,6 +491,7 @@ fun SingleDevicePanel(
     viewModel: EFuguViewModel,
     modifier: Modifier = Modifier
 ) {
+    val connectionState by connection.state.collectAsState()
     val latestPressure by connection.latestPressure.collectAsState()
     val chartData by connection.chartData.collectAsState()
     val chartMin by connection.chartMin.collectAsState()
@@ -290,51 +501,38 @@ fun SingleDevicePanel(
     val isCalibrated by connection.isCalibrated.collectAsState()
     val savedDevices by viewModel.savedDevices.collectAsState()
     val currentSaved = savedDevices.find { it.address == connection.address } ?: connection.savedDevice
+    val allUserProfiles by viewModel.userProfiles.collectAsState()
+    val allPairings by viewModel.deviceUserPairings.collectAsState()
+    val pairedUserId = allPairings.find { it.deviceAddress == connection.address }?.userId
+
+    // Visible min/max from chart (updated when paused + scrolling/zooming)
+    var visibleMin by remember { mutableStateOf<Double?>(null) }
+    var visibleMax by remember { mutableStateOf<Double?>(null) }
+    val displayMin = visibleMin ?: chartMin
+    val displayMax = visibleMax ?: chartMax
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
-            .padding(top = 8.dp)
+            .padding(top = 8.dp, bottom = 8.dp)
     ) {
         DeviceCard(
             savedDevice = currentSaved,
             batteryLevel = batteryLevel,
             deviceInfo = deviceInfo,
+            userProfiles = allUserProfiles,
+            pairedUserId = pairedUserId,
+            isConnecting = connectionState is DeviceConnectionState.Connecting,
             onDisconnect = { viewModel.disconnectDevice(connection.address) },
-            onNicknameSet = { viewModel.setNickname(connection.address, it) }
+            onNicknameSet = { viewModel.setNickname(connection.address, it) },
+            onColorSet = { viewModel.setColor(connection.address, it) },
+            onPairUser = { viewModel.pairDeviceToUser(connection.address, it) }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        PressureDisplay(
-            reading = latestPressure,
-            chartMin = chartMin,
-            chartMax = chartMax,
-            isCalibrated = isCalibrated,
-            onRecalibrate = { viewModel.resetCalibration(connection.address) }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (chartData.size >= 2) {
-            PressureChart(
-                data = chartData,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            )
-        } else if (isCalibrated) {
-            Box(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "Waiting for chart data...",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
-        } else {
+        if (connectionState is DeviceConnectionState.Connecting) {
             Box(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center
@@ -342,7 +540,48 @@ fun SingleDevicePanel(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Calibrating...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Connecting...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            PressureDisplay(
+                reading = latestPressure,
+                chartMin = displayMin,
+                chartMax = displayMax,
+                isCalibrated = isCalibrated,
+                onRecalibrate = { viewModel.resetCalibration(connection.address) }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (chartData.size >= 2) {
+                PressureChart(
+                    lines = listOf(ChartLine(chartData, currentSaved.colorArgb?.let { Color(it.toInt()) })),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    onVisibleRangeChanged = { min, max -> visibleMin = min; visibleMax = max }
+                )
+            } else if (isCalibrated) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Waiting for chart data...",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Calibrating...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -355,6 +594,7 @@ fun CompactDevicePanel(
     connection: DeviceConnection,
     viewModel: EFuguViewModel
 ) {
+    val connectionState by connection.state.collectAsState()
     val latestPressure by connection.latestPressure.collectAsState()
     val chartData by connection.chartData.collectAsState()
     val chartMin by connection.chartMin.collectAsState()
@@ -363,43 +603,78 @@ fun CompactDevicePanel(
     val isCalibrated by connection.isCalibrated.collectAsState()
     val savedDevices by viewModel.savedDevices.collectAsState()
     val currentSaved = savedDevices.find { it.address == connection.address } ?: connection.savedDevice
+    val allUserProfiles by viewModel.userProfiles.collectAsState()
+    val allPairings by viewModel.deviceUserPairings.collectAsState()
+    val pairedUserId = allPairings.find { it.deviceAddress == connection.address }?.userId
+    val pairedUser = allUserProfiles.find { it.id == pairedUserId }
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Header: name + battery + disconnect
+            // Header: name + user + battery + disconnect
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Filled.Bluetooth,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
+                if (currentSaved.colorArgb != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .background(Color(currentSaved.colorArgb.toInt()), CircleShape)
+                    )
+                } else {
+                    Icon(
+                        Icons.Filled.Bluetooth,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     currentSaved.displayName,
                     style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.weight(1f)
+                    color = MaterialTheme.colorScheme.tertiary
                 )
+                if (pairedUser != null) {
+                    Text(
+                        "  ·  ${pairedUser.name}",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
                 batteryLevel?.let {
                     Text("$it%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                 }
+                IconButton(
+                    onClick = { showEditDialog = true },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit", modifier = Modifier.size(14.dp))
+                }
+                Spacer(modifier = Modifier.width(4.dp))
                 OutlinedButton(
                     onClick = { viewModel.disconnectDevice(connection.address) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
-                    Text("Disconnect", fontSize = 11.sp)
+                    Text(if (connectionState is DeviceConnectionState.Connecting) "Cancel" else "Disconnect", fontSize = 11.sp)
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Connecting state
+            if (connectionState is DeviceConnectionState.Connecting) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Connecting...", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             // Pressure value + min/max
-            if (latestPressure != null) {
+            else if (latestPressure != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Bottom
@@ -434,13 +709,30 @@ fun CompactDevicePanel(
             if (chartData.size >= 2) {
                 Spacer(modifier = Modifier.height(4.dp))
                 PressureChart(
-                    data = chartData,
+                    lines = listOf(ChartLine(chartData, currentSaved.colorArgb?.let { Color(it.toInt()) })),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
                 )
             }
         }
+    }
+
+    if (showEditDialog) {
+        DeviceEditDialog(
+            currentNickname = currentSaved.nickname,
+            currentColor = currentSaved.colorArgb,
+            deviceName = currentSaved.name,
+            userProfiles = allUserProfiles,
+            currentPairedUserId = pairedUserId,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { nickname, color, userId ->
+                viewModel.setNickname(connection.address, nickname)
+                viewModel.setColor(connection.address, color)
+                if (userId != null) viewModel.pairDeviceToUser(connection.address, userId)
+                showEditDialog = false
+            }
+        )
     }
 }
 
@@ -452,11 +744,17 @@ fun CompactDevicePanel(
 fun DeviceCard(
     savedDevice: SavedDevice,
     batteryLevel: Int?,
-    deviceInfo: Map<String, String>,
+    deviceInfo: Map<String, String> = emptyMap(),
+    userProfiles: List<UserProfile> = emptyList(),
+    pairedUserId: String? = null,
+    isConnecting: Boolean = false,
     onDisconnect: () -> Unit,
-    onNicknameSet: (String?) -> Unit
+    onNicknameSet: (String?) -> Unit,
+    onColorSet: (Long?) -> Unit,
+    onPairUser: (String) -> Unit = {}
 ) {
-    var showNicknameDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    val pairedUser = userProfiles.find { it.id == pairedUserId }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -465,57 +763,84 @@ fun DeviceCard(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Filled.Bluetooth,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+            // Color dot or Bluetooth icon
+            if (savedDevice.colorArgb != null) {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .background(Color(savedDevice.colorArgb.toInt()), CircleShape)
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Bluetooth,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         savedDevice.displayName,
-                        style = MaterialTheme.typography.titleSmall
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.tertiary
                     )
+                    if (pairedUser != null) {
+                        Text(
+                            "  ·  ${pairedUser.name}",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
                     IconButton(
-                        onClick = { showNicknameDialog = true },
+                        onClick = { showEditDialog = true },
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             Icons.Filled.Edit,
-                            contentDescription = "Rename",
+                            contentDescription = "Edit",
                             modifier = Modifier.size(14.dp)
                         )
                     }
                 }
-                val infoItems = buildList {
+                val statusItems = buildList {
                     batteryLevel?.let { add("Battery: $it%") }
                     deviceInfo["Firmware"]?.let { add("FW $it") }
                     deviceInfo["Hardware"]?.let { add("HW $it") }
                 }
-                if (infoItems.isNotEmpty()) {
+                if (statusItems.isNotEmpty()) {
                     Text(
-                        infoItems.joinToString("  ·  "),
+                        statusItems.joinToString("  ·  "),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Text(
+                    if (savedDevice.nickname != null) "${savedDevice.name} — ${savedDevice.address}"
+                    else savedDevice.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             OutlinedButton(onClick = onDisconnect) {
-                Text("Disconnect", fontSize = 12.sp)
+                Text(if (isConnecting) "Cancel" else "Disconnect", fontSize = 12.sp)
             }
         }
     }
 
-    if (showNicknameDialog) {
-        NicknameDialog(
+    if (showEditDialog) {
+        DeviceEditDialog(
             currentNickname = savedDevice.nickname,
+            currentColor = savedDevice.colorArgb,
             deviceName = savedDevice.name,
-            onDismiss = { showNicknameDialog = false },
-            onConfirm = { nickname ->
+            userProfiles = userProfiles,
+            currentPairedUserId = pairedUserId,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { nickname, color, userId ->
                 onNicknameSet(nickname)
-                showNicknameDialog = false
+                onColorSet(color)
+                if (userId != null) onPairUser(userId)
+                showEditDialog = false
             }
         )
     }
@@ -592,98 +917,6 @@ fun PressureDisplay(
     }
 }
 
-// =============================================================================
-// Pressure chart
-// =============================================================================
-
-@Composable
-fun PressureChart(data: List<PressureReading>, modifier: Modifier = Modifier) {
-    val lineColor = MaterialTheme.colorScheme.primary
-    val zeroLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-    val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-    val density = LocalDensity.current
-
-    Card(modifier = modifier) {
-        if (data.size < 2) return@Card
-
-        val values = data.map { it.relativeHPa.toFloat() }
-        val rawMin = values.min()
-        val rawMax = values.max()
-        val minVal = (rawMin - 1f).coerceAtMost(-1f)
-        val maxVal = (rawMax + 1f).coerceAtLeast(1f)
-        val range = maxVal - minVal
-
-        // Fixed 10-second window
-        val windowSec = 10f
-        val nowTs = data.last().timestamp
-
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 40.dp, end = 8.dp, top = 8.dp, bottom = 24.dp)
-        ) {
-            val w = size.width
-            val h = size.height
-            val labelTextSize = with(density) { 10.sp.toPx() }
-
-            val textPaint = android.graphics.Paint().apply {
-                color = labelColor.hashCode()
-                textSize = labelTextSize
-                isAntiAlias = true
-            }
-
-            // Y-axis grid + labels
-            val gridStep = when {
-                range > 80f -> 20f
-                range > 40f -> 10f
-                range > 15f -> 5f
-                range > 6f -> 2f
-                else -> 1f
-            }
-            var gridVal = (kotlin.math.ceil(minVal / gridStep) * gridStep).toFloat()
-            while (gridVal <= maxVal) {
-                val y = h * (1f - (gridVal - minVal) / range)
-                val lineAlpha = if (gridVal == 0f) zeroLineColor else gridColor
-                val lineWidth = if (gridVal == 0f) 1.5f else 0.5f
-                drawLine(lineAlpha, Offset(0f, y), Offset(w, y), strokeWidth = lineWidth)
-
-                drawContext.canvas.nativeCanvas.drawText(
-                    "${gridVal.toInt()}",
-                    -with(density) { 36.dp.toPx() },
-                    y + labelTextSize / 3f,
-                    textPaint
-                )
-                gridVal += gridStep
-            }
-
-            // X-axis: fixed labels for the 10-second window
-            val xLabelY = h + with(density) { 16.dp.toPx() }
-            for (sec in listOf(2, 4, 6, 8, 10)) {
-                val x = w * (1f - sec.toFloat() / windowSec)
-                drawContext.canvas.nativeCanvas.drawText(
-                    "-${sec}s", x, xLabelY, textPaint
-                )
-            }
-            drawContext.canvas.nativeCanvas.drawText(
-                "now", w - with(density) { 20.dp.toPx() }, xLabelY, textPaint
-            )
-
-            // Pressure line — position each point by timestamp within fixed window
-            val path = Path()
-            var started = false
-            data.forEach { reading ->
-                val secAgo = (nowTs - reading.timestamp) / 1000f
-                val x = w * (1f - secAgo / windowSec)
-                if (x >= 0f) {
-                    val y = h * (1f - (reading.relativeHPa.toFloat() - minVal) / range)
-                    if (!started) { path.moveTo(x, y); started = true } else path.lineTo(x, y)
-                }
-            }
-            if (started) drawPath(path, lineColor, style = Stroke(width = 2.5f))
-        }
-    }
-}
 
 // =============================================================================
 // Devices tab
@@ -695,12 +928,16 @@ fun DevicesTab(
     savedDevices: List<SavedDevice>,
     scannedDevices: List<ScannedDevice>,
     connections: Map<String, DeviceConnection>,
+    userProfiles: List<UserProfile>,
+    deviceUserPairings: List<DeviceUserPairing>,
     onScan: () -> Unit,
     onStopScan: () -> Unit,
     onConnect: (String) -> Unit,
     onDisconnect: (String) -> Unit,
     onForget: (String) -> Unit,
     onNicknameSet: (String, String?) -> Unit,
+    onColorSet: (String, Long?) -> Unit,
+    onPairUser: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -733,22 +970,110 @@ fun DevicesTab(
             }
         }
 
-        // Saved devices
-        if (savedDevices.isNotEmpty()) {
+        // Collect connection states so Compose observes changes
+        val connectionStates = connections.mapValues { (_, conn) ->
+            conn.state.collectAsState().value
+        }
+
+        // Connecting devices
+        val connectingDevices = savedDevices.filter { device ->
+            connectionStates[device.address] is DeviceConnectionState.Connecting
+        }
+        if (connectingDevices.isNotEmpty()) {
+            Text(
+                "Connecting",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            connectingDevices.forEach { device ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(device.displayName, style = MaterialTheme.typography.bodyLarge)
+                            Text(device.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        OutlinedButton(
+                            onClick = { onDisconnect(device.address) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Cancel", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // Connected devices (fully connected, past the Connecting state)
+        val connectedDevices = savedDevices.filter { device ->
+            connectionStates[device.address]?.let { it !is DeviceConnectionState.Connecting } == true
+        }
+        if (connectedDevices.isNotEmpty()) {
+            Text(
+                "Connected",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+            connectedDevices.forEachIndexed { index, device ->
+                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                val connection = connections[device.address]!!
+                val batteryLevel = connection.batteryLevel.collectAsState().value
+                val deviceInfo = connection.deviceInfo.collectAsState().value
+                val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
+                DeviceCard(
+                    savedDevice = device,
+                    batteryLevel = batteryLevel,
+                    deviceInfo = deviceInfo,
+                    userProfiles = userProfiles,
+                    pairedUserId = pairedUserId,
+                    onDisconnect = { onDisconnect(device.address) },
+                    onNicknameSet = { onNicknameSet(device.address, it) },
+                    onColorSet = { onColorSet(device.address, it) },
+                    onPairUser = { userId -> onPairUser(device.address, userId) }
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // Saved devices (not currently connected)
+        val disconnectedDevices = savedDevices.filter { !connections.containsKey(it.address) }
+        // Re-evaluate freshness every second so stale entries fade out
+        val nowMs by produceState(System.currentTimeMillis()) {
+            while (true) {
+                value = System.currentTimeMillis()
+                kotlinx.coroutines.delay(500)
+            }
+        }
+        val nearbyAddresses = scannedDevices
+            .filter { nowMs - it.lastSeenMs < 2000 }
+            .map { it.address }
+            .toSet()
+        if (disconnectedDevices.isNotEmpty()) {
             Text(
                 "Saved devices",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
-            savedDevices.forEach { device ->
-                val isConnected = connections.containsKey(device.address)
+            disconnectedDevices.forEachIndexed { index, device ->
+                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
+                val isNearby = device.address in nearbyAddresses
                 SavedDeviceRow(
                     device = device,
-                    isConnected = isConnected,
+                    userProfiles = userProfiles,
+                    pairedUserId = pairedUserId,
+                    isNearby = isNearby,
                     onConnect = { onConnect(device.address) },
-                    onDisconnect = { onDisconnect(device.address) },
                     onForget = { onForget(device.address) },
-                    onNicknameSet = { onNicknameSet(device.address, it) }
+                    onNicknameSet = { onNicknameSet(device.address, it) },
+                    onColorSet = { onColorSet(device.address, it) },
+                    onPairUser = { userId -> onPairUser(device.address, userId) }
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -764,11 +1089,11 @@ fun DevicesTab(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
-                newDevices.forEach { device ->
+                newDevices.forEachIndexed { index, device ->
+                    if (index > 0) Spacer(modifier = Modifier.height(8.dp))
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 2.dp)
                             .clickable { onConnect(device.address) }
                     ) {
                         Row(
@@ -808,39 +1133,53 @@ fun DevicesTab(
 @Composable
 fun SavedDeviceRow(
     device: SavedDevice,
-    isConnected: Boolean,
+    userProfiles: List<UserProfile> = emptyList(),
+    pairedUserId: String? = null,
+    isNearby: Boolean = false,
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit,
     onForget: () -> Unit,
-    onNicknameSet: (String?) -> Unit
+    onNicknameSet: (String?) -> Unit,
+    onColorSet: (Long?) -> Unit,
+    onPairUser: (String) -> Unit = {}
 ) {
-    var showNicknameDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    val pairedUser = userProfiles.find { it.id == pairedUserId }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
-            .then(if (!isConnected) Modifier.clickable { onConnect() } else Modifier),
-        colors = if (isConnected) CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        ) else CardDefaults.cardColors()
+            .clickable { onConnect() }
     ) {
         Row(
             modifier = Modifier
                 .padding(12.dp)
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (device.colorArgb != null) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(Color(device.colorArgb.toInt()), CircleShape)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(device.displayName, style = MaterialTheme.typography.bodyLarge)
-                    if (isConnected) {
-                        Spacer(modifier = Modifier.width(6.dp))
+                    Text(device.displayName, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.tertiary)
+                    if (pairedUser != null) {
                         Text(
-                            "Connected",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            "  ·  ${pairedUser.name}",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    if (isNearby) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Available",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppColors.inRange,
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
@@ -851,50 +1190,194 @@ fun SavedDeviceRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            if (isConnected) {
-                OutlinedButton(
-                    onClick = onDisconnect,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                    modifier = Modifier.height(28.dp)
-                ) {
-                    Text("Disconnect", fontSize = 11.sp)
-                }
-            } else {
-                IconButton(onClick = { showNicknameDialog = true }) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Rename", modifier = Modifier.size(18.dp))
-                }
-                IconButton(onClick = onForget) {
-                    Icon(Icons.Filled.Close, contentDescription = "Forget", modifier = Modifier.size(18.dp))
-                }
+            IconButton(onClick = { showEditDialog = true }) {
+                Icon(Icons.Filled.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+            }
+            IconButton(onClick = onForget) {
+                Icon(Icons.Filled.Close, contentDescription = "Forget", modifier = Modifier.size(18.dp))
             }
         }
     }
 
-    if (showNicknameDialog) {
-        NicknameDialog(
+    if (showEditDialog) {
+        DeviceEditDialog(
             currentNickname = device.nickname,
+            currentColor = device.colorArgb,
             deviceName = device.name,
-            onDismiss = { showNicknameDialog = false },
-            onConfirm = { nickname ->
+            userProfiles = userProfiles,
+            currentPairedUserId = pairedUserId,
+            onDismiss = { showEditDialog = false },
+            onConfirm = { nickname, color, userId ->
                 onNicknameSet(nickname)
-                showNicknameDialog = false
+                onColorSet(color)
+                if (userId != null) onPairUser(userId)
+                showEditDialog = false
             }
         )
     }
 }
 
 @Composable
-fun NicknameDialog(
-    currentNickname: String?,
-    deviceName: String,
+fun DevicePickerDialog(
+    connections: Map<String, DeviceConnection>,
+    savedDevices: List<SavedDevice>,
+    userProfiles: List<UserProfile>,
+    deviceUserPairings: List<DeviceUserPairing>,
+    selectedAddress: String? = null,
+    onSelect: (DeviceConnection) -> Unit = {},
+    onPairUser: (deviceAddress: String, userId: String) -> Unit,
     onDismiss: () -> Unit,
-    onConfirm: (String?) -> Unit
+    multiSelect: Boolean = false,
+    onMultiSelect: (List<DeviceConnection>) -> Unit = {}
 ) {
-    var text by remember { mutableStateOf(currentNickname ?: "") }
+    val connectedDevices = savedDevices.filter { device ->
+        connections[device.address]?.let { it.state.value is DeviceConnectionState.Connected } == true
+    }
+
+    // Multi-select state
+    var selectedAddresses by remember { mutableStateOf(setOf<String>()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename device") },
+        title = { Text(if (multiSelect) "Select devices" else "Select device") },
+        text = {
+            Column {
+                connectedDevices.forEach { device ->
+                    val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
+                    val isSelected = if (multiSelect) device.address in selectedAddresses
+                        else device.address == selectedAddress
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (multiSelect) {
+                                    selectedAddresses = if (device.address in selectedAddresses)
+                                        selectedAddresses - device.address
+                                    else
+                                        selectedAddresses + device.address
+                                } else {
+                                    connections[device.address]?.let { onSelect(it) }
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (multiSelect) {
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { checked ->
+                                    selectedAddresses = if (checked)
+                                        selectedAddresses + device.address
+                                    else
+                                        selectedAddresses - device.address
+                                }
+                            )
+                        } else {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { connections[device.address]?.let { onSelect(it) } }
+                            )
+                        }
+                        if (device.colorArgb != null) {
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .background(Color(device.colorArgb.toInt()), CircleShape)
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Bluetooth,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            device.displayName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // User assignment pill
+                        var expanded by remember { mutableStateOf(false) }
+                        val pairedUser = userProfiles.find { it.id == pairedUserId }
+                        if (userProfiles.isNotEmpty()) {
+                            Box {
+                                AssistChip(
+                                    onClick = { expanded = true },
+                                    label = {
+                                        Text(
+                                            pairedUser?.name ?: "No user",
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                )
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    userProfiles.forEach { profile ->
+                                        DropdownMenuItem(
+                                            text = { Text(profile.name) },
+                                            onClick = {
+                                                onPairUser(device.address, profile.id)
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (connectedDevices.isEmpty()) {
+                    Text(
+                        "No devices connected.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (multiSelect) {
+                Button(
+                    onClick = {
+                        val selected = selectedAddresses.mapNotNull { addr -> connections[addr] }
+                        onMultiSelect(selected)
+                    },
+                    enabled = selectedAddresses.size >= 2
+                ) {
+                    Text("Start (${selectedAddresses.size})")
+                }
+            } else {
+                TextButton(onClick = onDismiss) { Text("Close") }
+            }
+        },
+        dismissButton = if (multiSelect) {
+            { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        } else null
+    )
+}
+
+@Composable
+fun DeviceEditDialog(
+    currentNickname: String?,
+    currentColor: Long?,
+    deviceName: String,
+    userProfiles: List<UserProfile> = emptyList(),
+    currentPairedUserId: String? = null,
+    onDismiss: () -> Unit,
+    onConfirm: (nickname: String?, color: Long?, pairedUserId: String?) -> Unit
+) {
+    var text by remember { mutableStateOf(currentNickname ?: "") }
+    var selectedColor by remember { mutableStateOf(currentColor) }
+    var selectedUserId by remember { mutableStateOf(currentPairedUserId) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit device") },
         text = {
             Column {
                 Text("Device: $deviceName", style = MaterialTheme.typography.bodySmall)
@@ -903,12 +1386,67 @@ fun NicknameDialog(
                     value = text,
                     onValueChange = { text = it },
                     label = { Text("Nickname") },
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words)
                 )
+                if (userProfiles.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Assigned user", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    var expanded by remember { mutableStateOf(false) }
+                    val selectedUser = userProfiles.find { it.id == selectedUserId }
+                    Box {
+                        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selectedUser?.name ?: "None")
+                        }
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            userProfiles.forEach { profile ->
+                                DropdownMenuItem(
+                                    text = { Text(profile.name) },
+                                    onClick = {
+                                        selectedUserId = profile.id
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Color", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                for (row in DeviceColors.presets.chunked(5)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        row.forEach { colorArgb ->
+                            val isSelected = colorArgb == selectedColor
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .then(
+                                        if (isSelected) Modifier.border(
+                                            3.dp,
+                                            MaterialTheme.colorScheme.onSurface,
+                                            CircleShape
+                                        ) else Modifier
+                                    )
+                                    .background(Color(colorArgb.toInt()), CircleShape)
+                                    .clickable {
+                                        selectedColor = if (selectedColor == colorArgb) null else colorArgb
+                                    }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(text.takeIf { it.isNotBlank() }) }) {
+            TextButton(onClick = { onConfirm(text.takeIf { it.isNotBlank() }, selectedColor, selectedUserId) }) {
                 Text("Save")
             }
         },
@@ -918,137 +1456,4 @@ fun NicknameDialog(
     )
 }
 
-// =============================================================================
-// Exercises tab (placeholder)
-// =============================================================================
 
-@Composable
-fun ExercisesTab(
-    connection: DeviceConnection?,
-    onGameStart: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .padding(top = 8.dp)
-    ) {
-        if (connection == null) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "Connect a device to play",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
-        } else {
-            Text("Games", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onGameStart() }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        drawFugu(size.width / 2f, size.height / 2f, size.minDimension / 3f)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Fugu Reef", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Navigate your fugu through the reef using equalization pressure",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-// =============================================================================
-// Logs tab
-// =============================================================================
-
-@Composable
-fun LogsTab(logMessages: List<String>, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .padding(top = 8.dp)
-    ) {
-        LogHeader(logMessages)
-        Spacer(modifier = Modifier.height(4.dp))
-        LogDisplay(messages = logMessages, modifier = Modifier.weight(1f))
-    }
-}
-
-@Composable
-fun LogHeader(messages: List<String>) {
-    val context = LocalContext.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text("Log:", style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = {
-                val clipboard = context.getSystemService(ClipboardManager::class.java)
-                clipboard.setPrimaryClip(ClipData.newPlainText("OpenFugu Logs", messages.joinToString("\n")))
-                Toast.makeText(context, "Logs copied!", Toast.LENGTH_SHORT).show()
-            }) {
-                Text("Copy", fontSize = 12.sp)
-            }
-            TextButton(onClick = {
-                val dir = context.getExternalFilesDir(null)
-                val file = File(dir, "openfugu_log.txt")
-                file.writeText(messages.joinToString("\n"))
-                Toast.makeText(context, "Saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-            }) {
-                Text("Save", fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-@Composable
-fun LogDisplay(messages: List<String>, modifier: Modifier = Modifier) {
-    val listState = rememberLazyListState()
-
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
-        }
-    }
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = MaterialTheme.shapes.small
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.padding(8.dp)
-        ) {
-            items(messages) { msg ->
-                Text(
-                    msg,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    lineHeight = 14.sp
-                )
-            }
-        }
-    }
-}

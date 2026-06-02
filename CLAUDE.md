@@ -1,0 +1,52 @@
+# OpenFugu — Claude Code Instructions
+
+## Project
+
+OpenFugu is an open-source Android app for the eFugu freediving BLE pressure training device. Kotlin + Jetpack Compose, targeting modern Android (API 35+).
+
+## Documentation
+
+Read before making changes:
+- **ARCHITECTURE.md** — app structure, data flow, navigation, design decisions
+- **IDEAS.md** — loose collection of ideas: completed, planned, and maybes
+
+Read only when working on BLE layer or protocol investigation:
+- **PROTOCOL.md** — BLE services, characteristics, auth flow, pressure data format
+
+**Keep docs in sync:** When completing a feature, update IDEAS.md. When changing app structure (new packages, navigation changes, new shared components), update ARCHITECTURE.md. When establishing a new convention or pattern, update this file.
+
+## Build
+
+From the project root, with `JAVA_HOME` pointing at a JDK 17+ (for example the
+one bundled with Android Studio):
+
+```bash
+JAVA_HOME=<path-to-jdk> ./gradlew compileDebugKotlin
+```
+
+Always compile after changes. Use `compileDebugKotlin` (fast) not `packageDebug` (may OOM).
+
+## Conventions
+
+### Reuse before creating
+Before creating a new composable, color constant, or utility, check if a shared one already exists in:
+- `ui/SharedComponents.kt` — shared colors (`AppColors`), label-value rows, dialogs
+- `game/GameUtils.kt` — shared game state, pressure-to-Y mapping, drawing helpers
+- `PressureChart.kt` — unified chart with optional overlays (don't create separate chart composables)
+
+### User-facing text
+Spell out words: "equalization" not "EQ", "minimum" not "min", "maximum" not "max". Abbreviations are fine in code identifiers. Use "target range" not "target band".
+
+### Linked entity colors
+When showing a linked entity next to a primary entity, the primary entity for that tab gets `tertiary` color (brighter), the linked entity stays default.
+- Devices/Live tabs: device name = `tertiary`, user name = default
+- Users tab: user name = `tertiary`, device name = default
+
+### State in composables
+Always use `collectAsState()` to observe StateFlows — never read `.value` directly in composables (causes stale UI that doesn't update).
+
+### User context
+There is no "active user" concept. User settings flow from device-user pairing: select a device → look up its paired user → use that user's calibration/settings.
+
+### Portrait only
+The app is locked to portrait orientation until proper support for landscape layout is added.

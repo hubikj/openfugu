@@ -29,7 +29,7 @@ class DeviceConnection(
     private val onUnexpectedDisconnect: () -> Unit = {}
 ) {
     companion object {
-        private const val CHART_HISTORY_SIZE = 200  // ~10 seconds at 20 Hz
+        private const val CHART_HISTORY_SIZE = 72000  // ~60 minutes at 20 Hz
     }
 
     // --- Observable state ---

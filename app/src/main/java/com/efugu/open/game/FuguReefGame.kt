@@ -43,23 +43,6 @@ private val BgColor = Color(0xFF0D1B2A)
 private val SeabedColor = Color(0xFF1A2D40)
 private val ObstacleColor = Color(0xFF2E8B57)
 private val ObstacleEdge = Color(0xFF3CB371)
-private val FishColor = Color(0xFFFFB347)
-private val FishEyeWhite = Color(0xFFFFFFFF)
-private val FishEyeBlack = Color(0xFF000000)
-private val FishTailColor = Color(0xFFFF8C00)
-private val ScoreColor = Color(0xCCFFFFFF)
-private val PressureColor = Color(0x99FFFFFF)
-private val OverlayBg = Color(0x88000000)
-
-// =============================================================================
-// Game state
-// =============================================================================
-
-private sealed class GameState {
-    data object WaitingToStart : GameState()
-    data object Playing : GameState()
-    data class GameOver(val score: Int) : GameState()
-}
 
 private data class Obstacle(
     var x: Float,               // dp from left edge
@@ -73,13 +56,24 @@ private data class Obstacle(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FuguReefScreen(connection: DeviceConnection, onBack: () -> Unit) {
+fun FuguReefScreen(
+    connection: DeviceConnection,
+    onBack: () -> Unit,
+    pressureRange: Double = PRESSURE_RANGE,
+    negativeRange: Double = 0.0,
+    expertMode: Boolean = false,
+    deviceName: String = connection.displayName,
+    userName: String? = null,
+    onSessionSave: ((com.efugu.open.session.Session) -> Unit)? = null
+) {
     val pressure by connection.latestPressure.collectAsState()
     val isCalibrated by connection.isCalibrated.collectAsState()
+    val chartData by connection.chartData.collectAsState()
     val density = LocalDensity.current
 
     // Game state
     var gameState by remember { mutableStateOf<GameState>(GameState.WaitingToStart) }
+    var gameStartMs by remember { mutableLongStateOf(0L) }
     var fishY by remember { mutableFloatStateOf(0.85f) }   // normalized 0=top, 1=bottom; start near bottom
     var scrollOffset by remember { mutableFloatStateOf(0f) }  // dp, for seabed wave animation
     var obstacles by remember { mutableStateOf(listOf<Obstacle>()) }
@@ -99,7 +93,27 @@ fun FuguReefScreen(connection: DeviceConnection, onBack: () -> Unit) {
         scrollOffset = 0f
         obstacles = emptyList()
         score = 0
+        gameStartMs = System.currentTimeMillis()
         gameState = GameState.Playing
+    }
+
+    // Save session on game over
+    LaunchedEffect(gameState) {
+        val gs = gameState
+        if (gs is GameState.GameOver && onSessionSave != null) {
+            val endMs = System.currentTimeMillis()
+            onSessionSave.invoke(com.efugu.open.session.Session.GameSession(
+                durationMs = endMs - gameStartMs,
+                deviceName = deviceName,
+                userName = userName,
+                pressureTrace = chartData.filter { it.timestamp in gameStartMs..endMs },
+                type = com.efugu.open.session.SessionType.REEF_GAME,
+                score = gs.score,
+                pressureRange = pressureRange,
+                negativeRange = negativeRange,
+                expertMode = expertMode
+            ))
+        }
     }
 
     // Game loop — all positions in dp, converted to px only at draw time
@@ -119,7 +133,7 @@ fun FuguReefScreen(connection: DeviceConnection, onBack: () -> Unit) {
 
                 // --- Update fish position from pressure ---
                 val currentPressure = pressure?.relativeHPa ?: 0.0
-                val targetY = 1f - (currentPressure / PRESSURE_RANGE).toFloat().coerceIn(0f, 1f)
+                val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
                 fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
                 fishY = fishY.coerceIn(fishMinY, fishMaxY)
 
@@ -291,31 +305,11 @@ fun FuguReefScreen(connection: DeviceConnection, onBack: () -> Unit) {
                     drawFugu(fishX, fishYClamped, fishRadiusPx)
 
                     // --- Score (top center) ---
-                    drawContext.canvas.nativeCanvas.drawText(
-                        "$score",
-                        w / 2f,
-                        80f,
-                        android.graphics.Paint().apply {
-                            color = ScoreColor.hashCode()
-                            textSize = 64f
-                            isAntiAlias = true
-                            typeface = android.graphics.Typeface.DEFAULT_BOLD
-                            textAlign = android.graphics.Paint.Align.CENTER
-                        }
-                    )
+                    drawScoreText(score, w)
 
                     // --- Live pressure (bottom-left) ---
                     val pressureText = pressure?.let { "${formatHPa(it.relativeHPa)} hPa" } ?: "-- hPa"
-                    drawContext.canvas.nativeCanvas.drawText(
-                        pressureText,
-                        16f * dpToPx,
-                        h - 16f * dpToPx,
-                        android.graphics.Paint().apply {
-                            color = PressureColor.hashCode()
-                            textSize = 13f * dpToPx
-                            isAntiAlias = true
-                        }
-                    )
+                    drawPressureText(pressureText, h, dpToPx)
                 }
 
                 // --- Overlays ---
@@ -331,7 +325,7 @@ fun FuguReefScreen(connection: DeviceConnection, onBack: () -> Unit) {
                         )
                     }
                     is GameState.GameOver -> {
-                        drawRect(OverlayBg)
+                        drawRect(GameOverlayBg)
                         val gameOverState = gameState as GameState.GameOver
                         drawOverlayText(
                             w, h,
@@ -348,59 +342,6 @@ fun FuguReefScreen(connection: DeviceConnection, onBack: () -> Unit) {
 // =============================================================================
 // Drawing helpers
 // =============================================================================
-
-fun DrawScope.drawFugu(cx: Float, cy: Float, radius: Float) {
-    // Tail fin — triangle shifted toward body center so body overlaps the base
-    val tailPath = Path().apply {
-        moveTo(cx - radius * 0.8f, cy)
-        lineTo(cx - radius * 1.8f, cy - radius * 0.6f)
-        lineTo(cx - radius * 1.8f, cy + radius * 0.6f)
-        close()
-    }
-    drawPath(tailPath, FishTailColor)
-
-    // Dorsal fin (drawn before body so body overlaps the base for a smooth join)
-    val dorsalPath = Path().apply {
-        moveTo(cx - radius * 0.2f, cy - radius * 0.85f)
-        lineTo(cx + radius * 0.1f, cy - radius * 1.4f)
-        lineTo(cx + radius * 0.4f, cy - radius * 0.85f)
-        close()
-    }
-    drawPath(dorsalPath, FishTailColor)
-
-    // Body (drawn after tail+fin so it overlaps their bases)
-    drawCircle(FishColor, radius, Offset(cx, cy))
-
-    // Eye
-    drawCircle(FishEyeWhite, radius * 0.3f, Offset(cx + radius * 0.35f, cy - radius * 0.2f))
-    drawCircle(FishEyeBlack, radius * 0.15f, Offset(cx + radius * 0.4f, cy - radius * 0.2f))
-
-    // Mouth
-    drawLine(
-        FishEyeBlack,
-        Offset(cx + radius * 0.8f, cy + radius * 0.1f),
-        Offset(cx + radius * 0.6f, cy + radius * 0.15f),
-        strokeWidth = 2f
-    )
-}
-
-private fun DrawScope.drawOverlayText(w: Float, h: Float, text: String) {
-    val lines = text.split("\n")
-    val paint = android.graphics.Paint().apply {
-        color = android.graphics.Color.WHITE
-        textSize = 42f
-        isAntiAlias = true
-        textAlign = android.graphics.Paint.Align.CENTER
-        typeface = android.graphics.Typeface.DEFAULT_BOLD
-    }
-    val lineHeight = 52f
-    val startY = h / 2f + lines.size * lineHeight / 2f + 80f
-    lines.forEachIndexed { i, line ->
-        drawContext.canvas.nativeCanvas.drawText(
-            line, w / 2f, startY + i * lineHeight, paint
-        )
-    }
-}
 
 private fun dist(x1: Float, y1: Float, x2: Float, y2: Float): Float {
     val dx = x1 - x2

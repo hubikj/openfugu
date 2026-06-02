@@ -1,0 +1,16 @@
+# Normalize line endings: store everything as LF in the repository.
+# This stops the "LF will be replaced by CRLF" warnings on Windows.
+* text=auto eol=lf
+
+# Windows batch files must keep CRLF to run correctly.
+*.bat text eol=crlf
+
+# The Gradle wrapper script is a shell script — force LF.
+gradlew text eol=lf
+
+# Binary files git should never try to convert.
+*.jar    binary
+*.png    binary
+*.webp   binary
+*.jpg    binary
+*.keystore binary
