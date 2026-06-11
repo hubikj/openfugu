@@ -9,7 +9,7 @@ The app is built with Kotlin, Jetpack Compose (Material 3), and targets modern A
 ## Project Structure
 
 ```
-app/src/main/java/com/efugu/open/
+app/src/main/java/org/hubik/openfugu/
 ├── MainActivity.kt          — Activity, root composable, navigation routing
 ├── PressureChart.kt         — Unified chart (pause/zoom/scroll, overlays)
 ├── ExercisesTab.kt          — Games + exercises listing, device selector

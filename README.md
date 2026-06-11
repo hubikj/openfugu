@@ -76,6 +76,19 @@ JAVA_HOME=<path-to-jdk> ./gradlew assembleDebug
 
 Or simply open the project in Android Studio and run it on a device with Bluetooth LE.
 
+### Release builds
+
+Debug builds need no setup. To build a **signed release APK** you need your own signing
+keystore: copy [keystore.properties.example](keystore.properties.example) to
+`keystore.properties` (gitignored), point it at your keystore, then run:
+
+```bash
+JAVA_HOME=<path-to-jdk> ./gradlew assembleRelease
+# → app/build/outputs/apk/release/app-release.apk
+```
+
+Without a `keystore.properties`, `assembleRelease` produces an unsigned APK.
+
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — app structure, data flow, navigation, design decisions.
