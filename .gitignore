@@ -19,6 +19,9 @@ keystore.properties
 *.jks
 *.keystore
 
+# Local staging area for APKs and notes attached to GitHub Releases by hand
+/releases/
+
 # Logs and JVM crash dumps (e.g. hs_err_pidNNNN.log, replay_pidNNNN.log)
 *.log
 hs_err_pid*
