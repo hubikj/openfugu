@@ -95,6 +95,7 @@ Without a `keystore.properties`, `assembleRelease` produces an unsigned APK.
 - [IDEAS.md](IDEAS.md) — a loose collection of ideas: some done, some planned, some just maybes.
 - [PROTOCOL.md](PROTOCOL.md) — reverse-engineered BLE services, characteristics, and the
   pressure data format.
+- [PRIVACY.md](PRIVACY.md) — privacy policy: everything stays on your device.
 
 ## Contributing
 
