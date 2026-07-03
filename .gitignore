@@ -22,6 +22,11 @@ keystore.properties
 # Local staging area for APKs and notes attached to GitHub Releases by hand
 /releases/
 
+# Output of Android Studio's "Generate Signed App Bundle / APK" wizard
+# (it writes to app/<variant>/, not app/build/)
+/app/release/
+/app/debug/
+
 # Logs and JVM crash dumps (e.g. hs_err_pidNNNN.log, replay_pidNNNN.log)
 *.log
 hs_err_pid*
