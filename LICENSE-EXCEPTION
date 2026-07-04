@@ -1,0 +1,29 @@
+OpenFugu — Additional permission under GNU GPL version 3, section 7
+====================================================================
+
+As an additional permission under section 7 of the GNU General Public
+License, version 3 ("GPLv3"), the copyright holders of OpenFugu grant you
+permission to convey (distribute) this program, and covered works based on
+it, through application distribution platforms ("app stores", such as the
+Apple App Store or Google Play), even where the platform's terms of
+service impose requirements or restrictions that would otherwise be
+incompatible with the GPLv3, provided that:
+
+  1. the complete corresponding source code of the conveyed work remains
+     publicly available under the GPLv3 together with this additional
+     permission, and
+
+  2. this additional permission is preserved in that source code.
+
+This additional permission exists solely to enable app store
+distribution. It does not otherwise modify or reduce the obligations of
+the GPLv3 for any other form of distribution. As provided by section 7 of
+the GPLv3, you may remove this additional permission from copies that you
+convey.
+
+Contributions
+-------------
+
+By submitting a contribution to this project, you agree that it is
+licensed under the GPLv3 together with this additional permission
+(see also CONTRIBUTING.md).

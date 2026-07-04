@@ -99,10 +99,12 @@ Without a `keystore.properties`, `assembleRelease` produces an unsigned APK.
 
 ## Contributing
 
-Contributions are welcome — bug reports, ideas, and pull requests. By contributing you
-agree your work is licensed under the project's license (below).
+Contributions are welcome — bug reports, ideas, and pull requests. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to get started and how contributions
+are licensed.
 
 ## License
 
-OpenFugu is free software licensed under the **GNU General Public License v3.0**.
-See [LICENSE](LICENSE) for the full text.
+OpenFugu is free software licensed under the **GNU General Public License v3.0**,
+with an [additional permission](LICENSE-EXCEPTION) (GPLv3 section 7) allowing
+distribution through app stores. See [LICENSE](LICENSE) for the full license text.
