@@ -466,6 +466,9 @@ fun ExercisesTab(
 
             recentSessions.take(20).forEach { entry ->
                 if (entry.id in pendingDeletes) return@forEach
+                // key() gives each row identity by session id — with positional
+                // slots, a swipe after a delete targets the wrong session.
+                key(entry.id) {
                 val dismissState = rememberSwipeToDismissBoxState(
                     confirmValueChange = { value ->
                         if (value != SwipeToDismissBoxValue.Settled) {
@@ -538,6 +541,7 @@ fun ExercisesTab(
                         }
                     }
                 }
+                } // key(entry.id)
             }
             Spacer(modifier = Modifier.height(8.dp))
         }

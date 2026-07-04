@@ -57,7 +57,15 @@ fun CalibrationWizard(
     val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
     val calibratingProfile = userProfiles.find { it.id == userId }
 
-    val connectedList = connections.values.filter { it.state.value is DeviceConnectionState.Connected }
+    // Collect each connection's state so Compose observes Connecting→Connected
+    // transitions (reading state.value directly would leave this screen stale).
+    val connectionStates = mutableMapOf<String, DeviceConnectionState>()
+    connections.forEach { (address, conn) ->
+        key(address) {
+            connectionStates[address] = conn.state.collectAsState().value
+        }
+    }
+    val connectedList = connections.values.filter { connectionStates[it.address] is DeviceConnectionState.Connected }
     var selectedAddress by remember { mutableStateOf<String?>(null) }
 
     // Auto-select: device paired to this user > first connected

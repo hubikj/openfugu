@@ -187,7 +187,7 @@ fun FuguCaveScreen(
                 durationMs = endMs - gameStartMs,
                 deviceName = deviceName,
                 userName = userName,
-                pressureTrace = chartData.filter { it.timestamp in gameStartMs..endMs },
+                pressureTrace = connection.historySnapshot().filter { it.timestamp in gameStartMs..endMs },
                 type = org.hubik.openfugu.session.SessionType.CAVE_GAME,
                 score = gs.score,
                 pressureRange = pressureRange,

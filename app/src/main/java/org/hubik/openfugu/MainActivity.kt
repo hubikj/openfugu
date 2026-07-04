@@ -259,15 +259,22 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
             )
             return
         } else {
-            activeGame = null
-            activeGameDeviceAddresses = emptyList()
+            // Too few players left. Reset in an effect (never as a side effect
+            // of composition) and tell the players what happened.
+            val context = LocalContext.current
+            LaunchedEffect(Unit) {
+                Toast.makeText(context, "Player disconnected — multiplayer game ended", Toast.LENGTH_LONG).show()
+                activeGame = null
+                activeGameDeviceAddresses = emptyList()
+            }
         }
     }
 
-    // When a game is active, render it full-screen (no top/bottom bars)
+    // When a game is active, render it full-screen (no top/bottom bars).
+    // Only the device the game was started with may drive it — falling back to
+    // "any connected device" would silently hijack another player's eFugu.
     if (activeGame != null && selectedTab == 1) {
         val connection = activeGameDeviceAddress?.let { connections[it] }
-            ?: connections.values.firstOrNull { it.state.value is DeviceConnectionState.Connected }
         if (connection != null) {
             BackHandler { activeGame = null; activeGameDeviceAddress = null }
             val userProfile = viewModel.userForDevice(connection.address)
@@ -313,8 +320,14 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
             }
             return
         } else {
-            activeGame = null
-            activeGameDeviceAddress = null
+            // The game's device disconnected. Reset in an effect (never as a
+            // side effect of composition) and tell the user.
+            val context = LocalContext.current
+            LaunchedEffect(Unit) {
+                Toast.makeText(context, "Device disconnected — game ended", Toast.LENGTH_LONG).show()
+                activeGame = null
+                activeGameDeviceAddress = null
+            }
         }
     }
 
@@ -368,11 +381,14 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
             }
         }
     ) { padding ->
-        // Auto-scan while on Devices tab; stop when leaving
+        // Auto-scan while on Devices tab; stop when leaving. The tab value is
+        // captured here because onDispose runs after selectedTab has already
+        // changed to the new tab.
         DisposableEffect(selectedTab) {
-            if (selectedTab == 2) viewModel.startScan()
+            val isDevicesTab = selectedTab == 2
+            if (isDevicesTab) onRequestPermissionsAndScan()
             onDispose {
-                if (selectedTab == 2) viewModel.stopScan()
+                if (isDevicesTab) viewModel.stopScan()
             }
         }
         when (selectedTab) {
@@ -1019,21 +1035,25 @@ fun DevicesTab(
             )
             connectedDevices.forEachIndexed { index, device ->
                 if (index > 0) Spacer(modifier = Modifier.height(8.dp))
-                val connection = connections[device.address]!!
-                val batteryLevel = connection.batteryLevel.collectAsState().value
-                val deviceInfo = connection.deviceInfo.collectAsState().value
-                val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
-                DeviceCard(
-                    savedDevice = device,
-                    batteryLevel = batteryLevel,
-                    deviceInfo = deviceInfo,
-                    userProfiles = userProfiles,
-                    pairedUserId = pairedUserId,
-                    onDisconnect = { onDisconnect(device.address) },
-                    onNicknameSet = { onNicknameSet(device.address, it) },
-                    onColorSet = { onColorSet(device.address, it) },
-                    onPairUser = { userId -> onPairUser(device.address, userId) }
-                )
+                // key() ties row state (e.g. an open edit dialog) to the device,
+                // not the list position — rows shift sections on (dis)connect.
+                key(device.address) {
+                    val connection = connections[device.address]!!
+                    val batteryLevel = connection.batteryLevel.collectAsState().value
+                    val deviceInfo = connection.deviceInfo.collectAsState().value
+                    val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
+                    DeviceCard(
+                        savedDevice = device,
+                        batteryLevel = batteryLevel,
+                        deviceInfo = deviceInfo,
+                        userProfiles = userProfiles,
+                        pairedUserId = pairedUserId,
+                        onDisconnect = { onDisconnect(device.address) },
+                        onNicknameSet = { onNicknameSet(device.address, it) },
+                        onColorSet = { onColorSet(device.address, it) },
+                        onPairUser = { userId -> onPairUser(device.address, userId) }
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -1059,19 +1079,21 @@ fun DevicesTab(
             )
             disconnectedDevices.forEachIndexed { index, device ->
                 if (index > 0) Spacer(modifier = Modifier.height(8.dp))
-                val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
-                val isNearby = device.address in nearbyAddresses
-                SavedDeviceRow(
-                    device = device,
-                    userProfiles = userProfiles,
-                    pairedUserId = pairedUserId,
-                    isNearby = isNearby,
-                    onConnect = { onConnect(device.address) },
-                    onForget = { onForget(device.address) },
-                    onNicknameSet = { onNicknameSet(device.address, it) },
-                    onColorSet = { onColorSet(device.address, it) },
-                    onPairUser = { userId -> onPairUser(device.address, userId) }
-                )
+                key(device.address) {
+                    val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
+                    val isNearby = device.address in nearbyAddresses
+                    SavedDeviceRow(
+                        device = device,
+                        userProfiles = userProfiles,
+                        pairedUserId = pairedUserId,
+                        isNearby = isNearby,
+                        onConnect = { onConnect(device.address) },
+                        onForget = { onForget(device.address) },
+                        onNicknameSet = { onNicknameSet(device.address, it) },
+                        onColorSet = { onColorSet(device.address, it) },
+                        onPairUser = { userId -> onPairUser(device.address, userId) }
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(12.dp))
         }

@@ -88,7 +88,7 @@ fun MinEqExerciseScreen(
                     durationMs = endMs - exerciseStartMs,
                     deviceName = deviceName,
                     userName = userName,
-                    pressureTrace = chartData.filter { it.timestamp in exerciseStartMs..endMs },
+                    pressureTrace = connection.historySnapshot().filter { it.timestamp in exerciseStartMs..endMs },
                     peakMarkers = peakMarkers,
                     mean = saveMean,
                     stddev = saveStddev,

@@ -71,7 +71,11 @@ class RangeTracker(
             return activated
         }
 
-        val dt = lastTimestampMs?.let { timestampMs - it } ?: 0L
+        // Clamp dt: samples arrive at ~20 Hz (50 ms), so anything much larger
+        // means the app was backgrounded or the BLE stream stalled. Crediting
+        // the whole gap to the current reading would fabricate streaks and
+        // skew percent-in-range.
+        val dt = (lastTimestampMs?.let { timestampMs - it } ?: 0L).coerceAtMost(MAX_SAMPLE_GAP_MS)
         lastTimestampMs = timestampMs
 
         if (dt <= 0) return true
@@ -106,6 +110,9 @@ class RangeTracker(
     }
 
     companion object {
+        /** Longest gap a single sample may be credited for (stream is ~20 Hz). */
+        private const val MAX_SAMPLE_GAP_MS = 200L
+
         fun create(
             minEqPressureHPa: Double,
             lowerPercent: Double = 0.6,

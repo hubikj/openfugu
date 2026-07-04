@@ -11,12 +11,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.hubik.openfugu.ChartLine
 import org.hubik.openfugu.PressureChart
 import org.hubik.openfugu.ble.EFuguViewModel
@@ -35,10 +39,25 @@ fun SessionViewerScreen(
     sessionId: String,
     onBack: () -> Unit
 ) {
-    val session = remember(sessionId) { viewModel.loadSession(sessionId) }
+    // Session files can be multi-MB (20 Hz traces) — load off the main thread
+    // and show a spinner instead of freezing composition.
+    var loading by remember(sessionId) { mutableStateOf(true) }
+    var loadedSession by remember(sessionId) { mutableStateOf<Session?>(null) }
+    LaunchedEffect(sessionId) {
+        loadedSession = viewModel.loadSession(sessionId)
+        loading = false
+    }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    if (loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+    val session = loadedSession
     if (session == null) {
         LaunchedEffect(Unit) { onBack() }
         return
@@ -57,7 +76,7 @@ fun SessionViewerScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        shareSession(context, viewModel, sessionId, session)
+                        scope.launch { shareSession(context, viewModel, sessionId, session) }
                     }) {
                         Icon(Icons.Filled.Share, contentDescription = "Share")
                     }
@@ -227,17 +246,22 @@ private fun formatDuration(ms: Long): String {
     return if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
 }
 
-private fun shareSession(context: android.content.Context, viewModel: EFuguViewModel, sessionId: String, session: Session) {
-    val json = viewModel.exportSessionJson(sessionId) ?: return
+private suspend fun shareSession(context: android.content.Context, viewModel: EFuguViewModel, sessionId: String, session: Session) {
+    val json = viewModel.exportSessionJson(sessionId)
+    if (json == null) {
+        Toast.makeText(context, "Session file not found", Toast.LENGTH_SHORT).show()
+        return
+    }
     try {
-        val dir = File(context.cacheDir, "shared_sessions")
-        dir.mkdirs()
-        val userStr = session.userName?.replace(" ", "_") ?: "unknown"
-        val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.getDefault()).format(Date(session.timestamp))
-        val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")
-        val fileName = "OpenFugu_${userStr}_${dateStr}_${typeStr}.json"
-        val file = File(dir, fileName)
-        file.writeText(json)
+        val file = withContext(Dispatchers.IO) {
+            val dir = File(context.cacheDir, "shared_sessions")
+            dir.mkdirs()
+            val userStr = session.userName?.replace(" ", "_") ?: "unknown"
+            val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.getDefault()).format(Date(session.timestamp))
+            val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")
+            val fileName = "OpenFugu_${userStr}_${dateStr}_${typeStr}.json"
+            File(dir, fileName).apply { writeText(json) }
+        }
 
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {

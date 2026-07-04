@@ -347,7 +347,9 @@ fun FuguFlowScreen(
     var gameStartMs by remember { mutableLongStateOf(0L) }
     var elapsedSec by remember { mutableFloatStateOf(0f) }
     var playerY by remember { mutableFloatStateOf(0.5f) }
-    var score by remember { mutableIntStateOf(0) }
+    // Accumulated as Float: integer-per-frame truncation would round sub-1
+    // per-frame gains down to zero and make scores frame-rate dependent.
+    var score by remember { mutableFloatStateOf(0f) }
     var comboTime by remember { mutableFloatStateOf(0f) }
     var comboMultiplier by remember { mutableIntStateOf(1) }
     var currentZone by remember { mutableStateOf("") }
@@ -372,7 +374,7 @@ fun FuguFlowScreen(
         activePattern = pattern
         elapsedSec = -GRACE_PERIOD_SEC
         playerY = 1f - pattern.targetAt(0f)
-        score = 0
+        score = 0f
         comboTime = 0f
         comboMultiplier = 1
         currentZone = ""
@@ -393,7 +395,7 @@ fun FuguFlowScreen(
                 durationMs = endMs - gameStartMs,
                 deviceName = deviceName,
                 userName = userName,
-                pressureTrace = chartData.filter { it.timestamp in gameStartMs..endMs },
+                pressureTrace = connection.historySnapshot().filter { it.timestamp in gameStartMs..endMs },
                 type = org.hubik.openfugu.session.SessionType.FLOW_GAME,
                 score = gs.score,
                 pressureRange = pressureRange,
@@ -418,7 +420,7 @@ fun FuguFlowScreen(
                 elapsedSec += clampedDt
 
                 if (elapsedSec >= pattern.durationSec) {
-                    gameState = GameState.GameOver(score)
+                    gameState = GameState.GameOver(score.toInt())
                     return@withInfiniteAnimationFrameNanos
                 }
 
@@ -463,7 +465,7 @@ fun FuguFlowScreen(
                     comboMultiplier = 1
                 }
 
-                score += (pps * comboMultiplier * clampedDt).toInt()
+                score += pps * comboMultiplier * clampedDt
             }
         }
     }
@@ -576,7 +578,7 @@ fun FuguFlowScreen(
                                 elapsedSec = elapsedSec,
                                 playerY = playerY,
                                 playerTrail = playerTrail,
-                                score = score,
+                                score = score.toInt(),
                                 comboMultiplier = comboMultiplier,
                                 currentZone = currentZone,
                                 timeWeight = timeWeight,

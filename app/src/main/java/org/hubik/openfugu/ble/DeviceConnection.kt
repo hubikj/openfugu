@@ -3,6 +3,8 @@ package org.hubik.openfugu.ble
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,11 @@ class DeviceConnection(
 ) {
     companion object {
         private const val CHART_HISTORY_SIZE = 72000  // ~60 minutes at 20 Hz
+        // Publish a chart snapshot every N samples. 1 = every sample (20 Hz,
+        // smooth scrolling). Raise this if very long multi-device sessions
+        // ever jank: each publish copies the history list (references only —
+        // the per-sample boxing and full min/max scans are gone regardless).
+        private const val CHART_PUBLISH_EVERY = 1
     }
 
     // --- Observable state ---
@@ -73,7 +80,29 @@ class DeviceConnection(
     private var ambientBaselineHPa: Double? = null
     private var calibrationSamples = mutableListOf<Double>()
 
+    // Full pressure history (ring buffer), touched only on the main thread
+    // (GATT callbacks are Handler-confined). _chartData publishes immutable
+    // snapshots of it at a reduced rate — copying the full list on every
+    // 20 Hz sample was a measured CPU/GC hotspot.
+    private val history = ArrayDeque<PressureReading>(1024)
+    private var samplesSincePublish = 0
+    private var runningMin = Double.POSITIVE_INFINITY
+    private var runningMax = Double.NEGATIVE_INFINITY
+
     private var pressureLogCounter = 0
+
+    /**
+     * Immutable copy of the full pressure history, including samples not yet
+     * published to [chartData]. Use for session traces at exercise/game end.
+     */
+    fun historySnapshot(): List<PressureReading> = ArrayList(history)
+
+    private fun clearHistory() {
+        history.clear()
+        samplesSincePublish = 0
+        runningMin = Double.POSITIVE_INFINITY
+        runningMax = Double.NEGATIVE_INFINITY
+    }
 
     // --- Public API ---
 
@@ -81,7 +110,19 @@ class DeviceConnection(
         _state.value = DeviceConnectionState.Connecting
         onLog("Connecting...")
         val device = adapter.getRemoteDevice(address)
-        gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        // Deliver all GATT callbacks on the main thread. Every consumer of this
+        // class's state lives there, so single-thread confinement removes the
+        // races between binder-thread callbacks and UI-driven calls like
+        // resetCalibration() or disconnect().
+        gatt = device.connectGatt(
+            context, false, gattCallback, BluetoothDevice.TRANSPORT_LE,
+            BluetoothDevice.PHY_LE_1M_MASK, Handler(Looper.getMainLooper())
+        )
+        if (gatt == null) {
+            onLog("connectGatt returned null — is Bluetooth on?")
+            _state.value = DeviceConnectionState.Error("Could not start connection")
+            onUnexpectedDisconnect()
+        }
     }
 
     fun disconnect() {
@@ -90,6 +131,7 @@ class DeviceConnection(
         gatt = null
         _state.value = DeviceConnectionState.Disconnected
         _latestPressure.value = null
+        clearHistory()
         _chartData.value = emptyList()
         _chartMin.value = null
         _chartMax.value = null
@@ -108,11 +150,21 @@ class DeviceConnection(
         ambientBaselineHPa = null
         calibrationSamples.clear()
         _isCalibrated.value = false
+        clearHistory()
         _chartData.value = emptyList()
         _chartMin.value = null
         _chartMax.value = null
         _latestPressure.value = null
         onLog("Calibration reset")
+    }
+
+    /** Give up on a half-established connection: close, surface an error, notify the owner. */
+    private fun abortConnection(gatt: BluetoothGatt, message: String) {
+        onLog(message)
+        _state.value = DeviceConnectionState.Error(message)
+        gatt.close()
+        this.gatt = null
+        onUnexpectedDisconnect()
     }
 
     // --- GATT callback (per-device) ---
@@ -123,7 +175,12 @@ class DeviceConnection(
                 BluetoothProfile.STATE_CONNECTED -> {
                     onLog("Connected — requesting MTU 517...")
                     _state.value = DeviceConnectionState.Connected
-                    gatt.requestMtu(517)
+                    if (!gatt.requestMtu(517)) {
+                        onLog("MTU request not initiated — discovering services directly...")
+                        if (!gatt.discoverServices()) {
+                            abortConnection(gatt, "Could not start service discovery")
+                        }
+                    }
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     onLog("Disconnected (status=$status)")
@@ -141,12 +198,14 @@ class DeviceConnection(
             } else {
                 onLog("MTU failed (status=$status) — discovering services...")
             }
-            gatt.discoverServices()
+            if (!gatt.discoverServices()) {
+                abortConnection(gatt, "Could not start service discovery")
+            }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                onLog("Service discovery failed: status=$status")
+                abortConnection(gatt, "Service discovery failed (status=$status)")
                 return
             }
 
@@ -178,9 +237,11 @@ class DeviceConnection(
 
             when (characteristic.uuid) {
                 EFuguUuids.BATTERY_LEVEL -> {
-                    val level = value[0].toInt() and 0xFF
-                    _batteryLevel.value = level
-                    onLog("Battery: $level%")
+                    val level = value.firstOrNull()?.toInt()?.and(0xFF)
+                    if (level != null) {
+                        _batteryLevel.value = level
+                        onLog("Battery: $level%")
+                    }
                 }
                 EFuguUuids.FIRMWARE_REVISION -> {
                     _deviceInfo.value += ("Firmware" to String(value))
@@ -207,7 +268,7 @@ class DeviceConnection(
                 EFuguUuids.REALTIME_PRESSURE_DATA -> handlePressureNotification(value)
                 EFuguUuids.AUTH_CHALLENGE -> handleAuthResponse(value)
                 EFuguUuids.BATTERY_LEVEL -> {
-                    _batteryLevel.value = value[0].toInt() and 0xFF
+                    value.firstOrNull()?.let { _batteryLevel.value = it.toInt() and 0xFF }
                 }
             }
         }
@@ -320,7 +381,9 @@ class DeviceConnection(
 
     private fun handlePressureNotification(value: ByteArray) {
         val ascii = String(value, Charsets.US_ASCII)
-        val pressurePa = ascii.toDoubleOrNull() ?: return
+        // toDoubleOrNull accepts "NaN"/"Infinity" — a single such frame would
+        // permanently poison the calibration average, so require a finite value.
+        val pressurePa = ascii.toDoubleOrNull()?.takeIf { it.isFinite() } ?: return
         val pressureHPa = pressurePa / 100.0
 
         // Auto-calibrate from first 20 readings (~1 second)
@@ -342,16 +405,25 @@ class DeviceConnection(
         )
         _latestPressure.value = reading
 
-        val history = _chartData.value.toMutableList()
-        history.add(reading)
+        history.addLast(reading)
         if (history.size > CHART_HISTORY_SIZE) {
             history.removeFirst()
         }
-        _chartData.value = history
 
-        val values = history.map { it.relativeHPa }
-        _chartMin.value = values.min()
-        _chartMax.value = values.max()
+        // Session-wide running extremes, updated incrementally.
+        if (relativeHPa < runningMin) {
+            runningMin = relativeHPa
+            _chartMin.value = relativeHPa
+        }
+        if (relativeHPa > runningMax) {
+            runningMax = relativeHPa
+            _chartMax.value = relativeHPa
+        }
+
+        if (++samplesSincePublish >= CHART_PUBLISH_EVERY) {
+            samplesSincePublish = 0
+            _chartData.value = ArrayList(history)
+        }
 
         // Log every ~5 seconds
         pressureLogCounter++

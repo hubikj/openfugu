@@ -1,23 +1,26 @@
 package org.hubik.openfugu.ble
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlin.math.abs
 
 data class ScannedDevice(
@@ -111,13 +114,20 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     val recentSessions = _recentSessions.asStateFlow()
 
     private var scanner: BluetoothLeScanner? = null
-    private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+    private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
+
+    // Devices the user explicitly disconnected this app run. Auto-connect skips
+    // these so a manual disconnect sticks while the device is still nearby;
+    // an explicit connect (tap) makes the device eligible again.
+    private val manuallyDisconnected = mutableSetOf<String>()
 
     init {
         loadSavedDevices()
         loadUserProfiles()
         loadDeviceUserPairings()
-        _recentSessions.value = sessionRepository.loadIndex()
+        viewModelScope.launch {
+            _recentSessions.value = sessionRepository.loadIndex()
+        }
 
         // Periodically bump lastConnectedAt for currently-connected devices
         // so MRU tracking reflects ongoing usage, not just connection start time.
@@ -141,11 +151,8 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun log(message: String) {
         Log.i(TAG, message)
-        val ts = timeFormat.format(Date())
-        _logMessages.value += "[$ts] $message"
-        if (_logMessages.value.size > 200) {
-            _logMessages.value = _logMessages.value.takeLast(200)
-        }
+        val ts = LocalTime.now().format(timeFormat)
+        _logMessages.update { (it + "[$ts] $message").takeLast(200) }
     }
 
     // --- Saved device persistence ---
@@ -157,18 +164,27 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 val arr = JSONArray(json)
                 val devices = mutableListOf<SavedDevice>()
                 for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    devices.add(SavedDevice(
-                        address = obj.getString("address"),
-                        name = obj.getString("name"),
-                        nickname = obj.optString("nickname").takeIf { it.isNotEmpty() && it != "null" },
-                        lastConnectedAt = obj.getLong("lastConnectedAt"),
-                        colorArgb = obj.optLong("colorArgb", 0L).takeIf { it != 0L }
-                    ))
+                    // Parse per entry: one unreadable device must not discard the rest.
+                    try {
+                        val obj = arr.getJSONObject(i)
+                        devices.add(SavedDevice(
+                            address = obj.getString("address"),
+                            name = obj.getString("name"),
+                            nickname = obj.optString("nickname").takeIf { it.isNotEmpty() && it != "null" },
+                            lastConnectedAt = obj.getLong("lastConnectedAt"),
+                            colorArgb = obj.optLong("colorArgb", 0L).takeIf { it != 0L }
+                        ))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Skipping unreadable saved device entry", e)
+                    }
                 }
                 _savedDevices.value = devices.sortedByDescending { it.lastConnectedAt }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to load saved devices", e)
+                // Whole payload unreadable. Back it up: the in-memory list stays
+                // empty, and the next persist would otherwise overwrite the pref
+                // and silently destroy the user's devices.
+                Log.w(TAG, "Failed to load saved devices — backing up raw payload", e)
+                prefs.edit().putString(PREF_SAVED_DEVICES + "_backup", json).apply()
             }
         }
 
@@ -248,23 +264,31 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             val arr = JSONArray(json)
             val profiles = mutableListOf<UserProfile>()
             for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                profiles.add(UserProfile(
-                    id = obj.getString("id"),
-                    name = obj.getString("name"),
-                    minEqPressureHPa = obj.optDouble("minEqPressureHPa").takeIf { !it.isNaN() },
-                    maxPositiveHPa = obj.optDouble("maxPositiveHPa").takeIf { !it.isNaN() },
-                    maxNegativeHPa = obj.optDouble("maxNegativeHPa").takeIf { !it.isNaN() },
-                    gamePressureRangeManual = obj.optDouble("gamePressureRangeManual").takeIf { !it.isNaN() },
-                    gameNegativeRangeManual = obj.optDouble("gameNegativeRangeManual").takeIf { !it.isNaN() },
-                    useAutoRange = obj.optBoolean("useAutoRange", true),
-                    expertMode = obj.optBoolean("expertMode", false),
-                    lastCalibratedAt = obj.optLong("lastCalibratedAt", 0L).takeIf { it != 0L }
-                ))
+                // Parse per entry: one unreadable profile must not discard the rest.
+                try {
+                    val obj = arr.getJSONObject(i)
+                    profiles.add(UserProfile(
+                        id = obj.getString("id"),
+                        name = obj.getString("name"),
+                        minEqPressureHPa = obj.optDouble("minEqPressureHPa").takeIf { !it.isNaN() },
+                        maxPositiveHPa = obj.optDouble("maxPositiveHPa").takeIf { !it.isNaN() },
+                        maxNegativeHPa = obj.optDouble("maxNegativeHPa").takeIf { !it.isNaN() },
+                        gamePressureRangeManual = obj.optDouble("gamePressureRangeManual").takeIf { !it.isNaN() },
+                        gameNegativeRangeManual = obj.optDouble("gameNegativeRangeManual").takeIf { !it.isNaN() },
+                        useAutoRange = obj.optBoolean("useAutoRange", true),
+                        expertMode = obj.optBoolean("expertMode", false),
+                        lastCalibratedAt = obj.optLong("lastCalibratedAt", 0L).takeIf { it != 0L }
+                    ))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Skipping unreadable user profile entry", e)
+                }
             }
             _userProfiles.value = profiles
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to load user profiles", e)
+            // Whole payload unreadable — back it up so the calibration data is
+            // not destroyed by the next persist (see loadSavedDevices).
+            Log.w(TAG, "Failed to load user profiles — backing up raw payload", e)
+            prefs.edit().putString(PREF_USER_PROFILES + "_backup", json).apply()
         }
     }
 
@@ -318,15 +342,20 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             val arr = JSONArray(json)
             val pairings = mutableListOf<DeviceUserPairing>()
             for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                pairings.add(DeviceUserPairing(
-                    deviceAddress = obj.getString("deviceAddress"),
-                    userId = obj.getString("userId")
-                ))
+                try {
+                    val obj = arr.getJSONObject(i)
+                    pairings.add(DeviceUserPairing(
+                        deviceAddress = obj.getString("deviceAddress"),
+                        userId = obj.getString("userId")
+                    ))
+                } catch (e: Exception) {
+                    Log.w(TAG, "Skipping unreadable pairing entry", e)
+                }
             }
             _deviceUserPairings.value = pairings
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to load device-user pairings", e)
+            Log.w(TAG, "Failed to load pairings — backing up raw payload", e)
+            prefs.edit().putString(PREF_DEVICE_USER_PAIRINGS + "_backup", json).apply()
         }
     }
 
@@ -366,6 +395,11 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             _scanState.value = ScanState.Error("Bluetooth is disabled")
             return
         }
+        if (getApplication<Application>().checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)
+            != PackageManager.PERMISSION_GRANTED) {
+            _scanState.value = ScanState.Error("Bluetooth permission not granted")
+            return
+        }
 
         scanner = adapter.bluetoothLeScanner
         _scannedDevices.value = emptyList()
@@ -403,9 +437,16 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             log("Bluetooth not available")
             return
         }
+        if (!adapter.isEnabled) {
+            log("Bluetooth is disabled — cannot connect")
+            return
+        }
 
-        // Keep scan running so other saved/unknown devices can still be discovered.
-        // The scan timeout (set in startScan) will stop it eventually.
+        // An explicit connect makes the device eligible for auto-connect again.
+        manuallyDisconnected.remove(address)
+
+        // Keep scan running so other saved/unknown devices can still be discovered;
+        // it stops when the user leaves the Devices tab.
 
         // Find or create saved device entry
         val saved = _savedDevices.value.find { it.address == address }
@@ -437,6 +478,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         val connection = _connections.value[address] ?: return
         connection.disconnect()
         _connections.value = _connections.value - address
+        manuallyDisconnected.add(address)
         bumpLastUsed(address)
         log("Disconnected ${connection.displayName}")
     }
@@ -505,16 +547,17 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         }
         _scannedDevices.value = current
 
-        // Auto-connect to most recently used saved device, but only when nothing
-        // else is already connected. This prevents auto-reconnect loops after
-        // manual disconnects: if A is connected and the user disconnects B, B is
-        // not silently reconnected just because the scan still sees it nearby.
+        // Auto-connect to the most recently used saved device, but only when
+        // nothing else is already connected, and never to a device the user
+        // manually disconnected this app run — a manual disconnect must stick
+        // even while the scan still sees the device nearby.
         val saved = _savedDevices.value
         if (saved.isNotEmpty() &&
             _connections.value.isEmpty() &&
             _scanState.value is ScanState.Scanning) {
             val mruDevice = saved.first()
-            if (device.address == mruDevice.address) {
+            if (device.address == mruDevice.address &&
+                mruDevice.address !in manuallyDisconnected) {
                 log("Auto-connecting to ${mruDevice.displayName}...")
                 connectToDevice(device.address)
             }
@@ -524,21 +567,31 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     // --- Session recording ---
 
     fun saveSession(session: org.hubik.openfugu.session.Session) {
-        sessionRepository.saveSession(session)
-        _recentSessions.value = sessionRepository.loadIndex()
+        viewModelScope.launch {
+            val saved = sessionRepository.saveSession(session)
+            _recentSessions.value = sessionRepository.loadIndex()
+            if (!saved) {
+                log("Failed to save session!")
+                Toast.makeText(getApplication(), "Could not save session", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
-    fun loadSession(id: String): org.hubik.openfugu.session.Session? = sessionRepository.loadSession(id)
+    suspend fun loadSession(id: String): org.hubik.openfugu.session.Session? =
+        sessionRepository.loadSession(id)
 
     fun deleteSession(id: String) {
-        sessionRepository.deleteSession(id)
-        _recentSessions.value = sessionRepository.loadIndex()
+        viewModelScope.launch {
+            sessionRepository.deleteSession(id)
+            _recentSessions.value = sessionRepository.loadIndex()
+        }
     }
 
-    fun exportSessionJson(id: String): String? = sessionRepository.exportSessionJson(id)
+    suspend fun exportSessionJson(id: String): String? = sessionRepository.exportSessionJson(id)
 
     override fun onCleared() {
         super.onCleared()
+        stopScan()
         disconnectAll()
     }
 }

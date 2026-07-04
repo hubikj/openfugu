@@ -265,7 +265,7 @@ private fun RunningScreen(
     // Auto-finish when duration reached
     LaunchedEffect(totalTimeMs) {
         if (durationSeconds > 0 && totalTimeMs >= durationSeconds * 1000L) {
-            onFinish(percentInRange, bestStreakMs, totalTimeMs, chartData.filter { it.timestamp >= exerciseStartMs }, tracker)
+            onFinish(percentInRange, bestStreakMs, totalTimeMs, connection.historySnapshot().filter { it.timestamp >= exerciseStartMs }, tracker)
         }
     }
 
@@ -418,7 +418,7 @@ private fun RunningScreen(
         // Manual stop button
         if (activated) {
             OutlinedButton(
-                onClick = { onFinish(percentInRange, bestStreakMs, totalTimeMs, chartData.filter { it.timestamp >= exerciseStartMs }, tracker) },
+                onClick = { onFinish(percentInRange, bestStreakMs, totalTimeMs, connection.historySnapshot().filter { it.timestamp >= exerciseStartMs }, tracker) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Stop")

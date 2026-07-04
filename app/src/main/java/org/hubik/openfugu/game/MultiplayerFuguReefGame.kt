@@ -27,6 +27,7 @@ import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.ble.SavedDevice
 import org.hubik.openfugu.ble.formatHPa
 import kotlin.math.max
+import kotlin.math.hypot
 import kotlin.math.sin
 
 // =============================================================================
@@ -101,6 +102,9 @@ fun MultiplayerFuguReefScreen(
     var playerStates by remember {
         mutableStateOf(players.map { PlayerGameState(it) })
     }
+    // Actual canvas size in dp, reported from the Canvas draw scope (same
+    // pattern as Fugu Cave) — never assume a hardcoded screen size.
+    var canvasSizeDp by remember { mutableStateOf(Pair(400f, 800f)) }
 
     // Max score among alive players drives speed
     val maxAliveScore = playerStates.filter { it.alive }.maxOfOrNull { it.score } ?: 0
@@ -133,7 +137,7 @@ fun MultiplayerFuguReefScreen(
             val endMs = System.currentTimeMillis()
             val ranked = playerStates.sortedByDescending { it.score }
             val playerResults = ranked.mapIndexed { idx, ps ->
-                val chartData = ps.info.connection.chartData.value
+                val chartData = ps.info.connection.historySnapshot()
                 org.hubik.openfugu.session.Session.PlayerResult(
                     deviceName = ps.info.displayName,
                     userName = ps.info.userName,
@@ -202,7 +206,7 @@ fun MultiplayerFuguReefScreen(
                 updated.removeAll { it.x < -(OBSTACLE_WIDTH_DP * 2) }
 
                 // Spawn
-                val screenWidthDp = with(density) { 400.dp.toPx() / density.density }.toFloat()
+                val (screenWidthDp, screenHeightDp) = canvasSizeDp
                 val rightEdge = updated.maxOfOrNull { it.x }
                 val spawnThreshold = screenWidthDp + OBSTACLE_WIDTH_DP
                 if (rightEdge == null || rightEdge < spawnThreshold) {
@@ -232,22 +236,23 @@ fun MultiplayerFuguReefScreen(
                         alivePlayers.forEach { it.score++ }
                     }
 
-                    // Collision per alive player
+                    // Collision per alive player — circle vs the two barrier
+                    // rectangles, computed in dp space. The vertical axis is
+                    // denormalized by the real screen height (the fish radius
+                    // must not be scaled by the screen width).
                     if (obsRightDp > fishX - fishRadiusDp && obsLeftDp < fishX + fishRadiusDp) {
                         alivePlayers.forEach { ps ->
                             if (!ps.alive) return@forEach
-                            val fishYNorm = ps.fishY
-                            // Check if fish is outside the gap (in normalized coords)
-                            if (fishYNorm - fishRadiusDp / screenWidthDp < gapTop ||
-                                fishYNorm + fishRadiusDp / screenWidthDp > gapBottom) {
-                                // More precise circle-rect collision
-                                val fishYScreen = fishYNorm * 1f // normalized
-                                val topBarrierBottom = gapTop
-                                val bottomBarrierTop = gapBottom
-                                val fishR = fishRadiusDp / screenWidthDp
-                                if (fishYScreen - fishR < topBarrierBottom || fishYScreen + fishR > bottomBarrierTop) {
-                                    ps.alive = false
-                                }
+                            val fishYDp = ps.fishY * screenHeightDp
+                            val gapTopDp = gapTop * screenHeightDp
+                            val gapBottomDp = gapBottom * screenHeightDp
+                            val closestX = fishX.coerceIn(obsLeftDp, obsRightDp)
+                            val closestYTop = fishYDp.coerceIn(0f, gapTopDp)
+                            val closestYBot = fishYDp.coerceIn(gapBottomDp, screenHeightDp)
+                            val hitTop = hypot(fishX - closestX, fishYDp - closestYTop) < fishRadiusDp
+                            val hitBottom = hypot(fishX - closestX, fishYDp - closestYBot) < fishRadiusDp
+                            if (hitTop || hitBottom) {
+                                ps.alive = false
                             }
                         }
                     }
@@ -289,6 +294,11 @@ fun MultiplayerFuguReefScreen(
                 val w = size.width
                 val h = size.height
                 val dpToPx = density.density
+                val wDp = w / dpToPx
+                val hDp = h / dpToPx
+                if (canvasSizeDp.first != wDp || canvasSizeDp.second != hDp) {
+                    canvasSizeDp = Pair(wDp, hDp)
+                }
                 val fishRadiusPx = FISH_RADIUS_DP * dpToPx
                 val obstacleWidthPx = OBSTACLE_WIDTH_DP * dpToPx
                 val fishX = w * 0.25f

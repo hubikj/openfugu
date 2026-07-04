@@ -16,14 +16,22 @@ data class UserProfile(
 ) {
     val gamePressureRange: Double
         get() = when {
-            !useAutoRange && gamePressureRangeManual != null -> gamePressureRangeManual
+            // Safety: a manual range must never demand more than the auto range
+            // would — games must not incentivize pressure above the calibrated
+            // comfortable maximum. Uncalibrated profiles have nothing to clamp
+            // against; the user detail screen warns about that case.
+            !useAutoRange && gamePressureRangeManual != null ->
+                maxPositiveHPa?.let { gamePressureRangeManual.coerceAtMost(it * 0.8) }
+                    ?: gamePressureRangeManual
             useAutoRange && maxPositiveHPa != null -> maxPositiveHPa * 0.8
             else -> 40.0
         }
 
     val gameNegativeRange: Double
         get() = when {
-            !useAutoRange && gameNegativeRangeManual != null -> gameNegativeRangeManual
+            !useAutoRange && gameNegativeRangeManual != null ->
+                maxNegativeHPa?.let { gameNegativeRangeManual.coerceAtMost(it * 0.8) }
+                    ?: gameNegativeRangeManual
             useAutoRange && maxNegativeHPa != null -> maxNegativeHPa * 0.8
             else -> 0.0
         }

@@ -44,7 +44,9 @@ data class ChartLine(
 fun PressureChart(
     lines: List<ChartLine>,
     modifier: Modifier = Modifier,
-    onVisibleRangeChanged: ((min: Double, max: Double) -> Unit)? = null,
+    // Reports the visible window's min/max while paused-scrolling, and
+    // (null, null) on resume so the caller can fall back to session extremes.
+    onVisibleRangeChanged: ((min: Double?, max: Double?) -> Unit)? = null,
     peakMarkers: List<PeakMarker>? = null,
     targetRange: Pair<Double, Double>? = null,
     activationThreshold: Double? = null,
@@ -80,11 +82,16 @@ fun PressureChart(
         val viewLeftMs = viewRightMs - (windowSec * 1000f).toLong()
 
         val marginMs = (windowSec * 100f).toLong()
-        val visibleData = data.filter { it.timestamp in (viewLeftMs - marginMs)..viewRightMs }
+        val visibleData = data.sliceByTime(viewLeftMs - marginMs, viewRightMs)
 
-        val values = visibleData.map { it.relativeHPa.toFloat() }
-        val rawMin = if (values.isNotEmpty()) values.min() else -1f
-        val rawMax = if (values.isNotEmpty()) values.max() else 1f
+        var rawMin = Float.POSITIVE_INFINITY
+        var rawMax = Float.NEGATIVE_INFINITY
+        visibleData.forEach { r ->
+            val v = r.relativeHPa.toFloat()
+            if (v < rawMin) rawMin = v
+            if (v > rawMax) rawMax = v
+        }
+        if (visibleData.isEmpty()) { rawMin = -1f; rawMax = 1f }
 
         // Extend Y range to include target range and threshold if present
         var minVal = (rawMin - 1f).coerceAtMost(-1f)
@@ -98,7 +105,16 @@ fun PressureChart(
         }
         val range = maxVal - minVal
 
-        onVisibleRangeChanged?.invoke(rawMin.toDouble(), rawMax.toDouble())
+        // Report from a SideEffect (never during composition — that schedules a
+        // second recomposition pass on every data tick), and only while paused:
+        // when live, callers show the session-wide extremes instead.
+        if (onVisibleRangeChanged != null) {
+            val reportMin = rawMin.toDouble()
+            val reportMax = rawMax.toDouble()
+            SideEffect {
+                if (isPaused) onVisibleRangeChanged(reportMin, reportMax)
+            }
+        }
 
         val earliestTs = data.first().timestamp
         val maxScrollSec = ((rightEdgeTs - earliestTs) / 1000f - windowSec).coerceAtLeast(0f)
@@ -215,7 +231,7 @@ fun PressureChart(
                     // Draw segment-by-segment with color based on in-range
                     var prevX = Float.NaN
                     var prevY = Float.NaN
-                    data.forEach { reading ->
+                    visibleData.forEach { reading ->
                         val x = tsToX(reading.timestamp)
                         if (x >= -10f && x <= w + 10f) {
                             val y = hPaToY(reading.relativeHPa.toFloat())
@@ -240,7 +256,7 @@ fun PressureChart(
                     // Single-color line
                     val path = Path()
                     var started = false
-                    data.forEach { reading ->
+                    visibleData.forEach { reading ->
                         val x = tsToX(reading.timestamp)
                         if (x >= -10f && x <= w + 10f) {
                             val y = hPaToY(reading.relativeHPa.toFloat())
@@ -255,7 +271,7 @@ fun PressureChart(
                     val lineColor = line.color ?: themeDefault
                     val linePath = Path()
                     var lineStarted = false
-                    line.data.forEach { reading ->
+                    line.data.sliceByTime(viewLeftMs - marginMs, viewRightMs).forEach { reading ->
                         val x = tsToX(reading.timestamp)
                         if (x >= -10f && x <= w + 10f) {
                             val y = hPaToY(reading.relativeHPa.toFloat())
@@ -296,6 +312,7 @@ fun PressureChart(
                         isPaused = false
                         scrollOffsetSec = 0f
                         windowSec = 10f
+                        onVisibleRangeChanged?.invoke(null, null)
                     }
                 },
                 modifier = Modifier
@@ -323,4 +340,29 @@ fun PressureChart(
             }
         }
     }
+}
+
+/**
+ * Slice a time-ordered reading list to [fromMs]..[toMs] using binary search,
+ * including one extra point on each side so line segments cross the window
+ * edges. The history can be an hour long (72k points) — scanning all of it on
+ * every 20 Hz frame was a measured hotspot; the visible window is tiny.
+ */
+private fun List<PressureReading>.sliceByTime(fromMs: Long, toMs: Long): List<PressureReading> {
+    if (isEmpty()) return this
+    var lo = 0
+    var hi = size
+    while (lo < hi) {
+        val mid = (lo + hi) ushr 1
+        if (this[mid].timestamp < fromMs) lo = mid + 1 else hi = mid
+    }
+    val start = (lo - 1).coerceAtLeast(0)
+    lo = start
+    hi = size
+    while (lo < hi) {
+        val mid = (lo + hi) ushr 1
+        if (this[mid].timestamp <= toMs) lo = mid + 1 else hi = mid
+    }
+    val end = (lo + 1).coerceAtMost(size)
+    return subList(start, end)
 }
