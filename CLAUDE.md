@@ -21,10 +21,14 @@ From the project root, with `JAVA_HOME` pointing at a JDK 17+ (for example the
 one bundled with Android Studio):
 
 ```bash
-JAVA_HOME=<path-to-jdk> ./gradlew compileDebugKotlin
+JAVA_HOME=<path-to-jdk> ./gradlew compileDebugKotlin      # compile check (fast)
+JAVA_HOME=<path-to-jdk> ./gradlew testDebugUnitTest       # unit tests
 ```
 
-Always compile after changes. Use `compileDebugKotlin` (fast) not `packageDebug` (may OOM).
+Always compile after changes, and run the unit tests when touching the
+algorithmic core (detectors, exercises, game math, session serialization —
+they live in `app/src/test/`). Use `compileDebugKotlin` (fast) not
+`packageDebug` (may OOM).
 
 ## Conventions
 
