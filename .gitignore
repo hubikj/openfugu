@@ -37,6 +37,9 @@ replay_pid*
 .cxx
 /captures
 
+# Claude Code personal overrides (per-developer; .claude/settings.json IS committed)
+.claude/settings.local.json
+
 # Operating-system clutter
 .DS_Store
 Thumbs.db
