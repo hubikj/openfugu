@@ -92,6 +92,8 @@ Without a `keystore.properties`, `assembleRelease` produces an unsigned APK.
 
 ## Documentation
 
+- [SPEC.md](SPEC.md) — platform-neutral domain specification: calibration, detectors,
+  scoring, game rules, session format. Ports are built from this.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — app structure, data flow, navigation, design decisions.
 - [IDEAS.md](IDEAS.md) — a loose collection of ideas: some done, some planned, some just maybes.
 - [PROTOCOL.md](PROTOCOL.md) — reverse-engineered BLE services, characteristics, and the

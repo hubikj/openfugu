@@ -9,6 +9,8 @@ OpenFugu is an open-source Android app for the eFugu freediving BLE pressure tra
 Read before making changes:
 - **ARCHITECTURE.md** — app structure, data flow, navigation, design decisions
 - **IDEAS.md** — loose collection of ideas: completed, planned, and maybes
+- **SPEC.md** — platform-neutral domain spec (algorithms, scoring, session format).
+  Keep it in sync when changing detectors, scoring, ranges, or the session schema.
 
 Read only when working on BLE layer or protocol investigation:
 - **PROTOCOL.md** — BLE services, characteristics, auth flow, pressure data format

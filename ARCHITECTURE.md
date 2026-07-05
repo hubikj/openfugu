@@ -32,7 +32,8 @@ app/src/main/java/org/hubik/openfugu/
 │
 ├── session/                 — Session recording and replay
 │   ├── Session.kt           — Data model (sealed class: MinEq, ConstantEq, Game sessions)
-│   ├── SessionRepository.kt — File I/O: save, load, list, delete, export JSON
+│   ├── SessionJson.kt       — Pure JSON (de)serialization (unit-tested round-trips)
+│   ├── SessionRepository.kt — File I/O: atomic save, load, list, delete (Dispatchers.IO)
 │   └── SessionViewerScreen.kt — Full-screen replay with chart + stats + share
 │
 ├── exercise/                — Training exercises
@@ -55,19 +56,23 @@ app/src/main/java/org/hubik/openfugu/
 
 ```
 eFugu device (BLE notification, ASCII Pascals, ~20 Hz)
-  ↓
+  ↓  (all GATT callbacks are Handler-confined to the main thread)
 DeviceConnection.gattCallback.onCharacteristicChanged()
-  ↓ parse ASCII → Double, subtract ambient baseline → relativeHPa
+  ↓ parse ASCII → Double (finite values only), subtract ambient baseline → relativeHPa
 PressureReading(pressureHPa, relativeHPa, timestamp)
-  ↓ stored in StateFlows
-latestPressure (current value)    chartData (last 60 min history)
+  ↓ ring buffer (60 min) + StateFlows
+latestPressure (every sample)     chartData (immutable snapshots)
   ↓                                ↓
-Composables collect via           PressureChart renders
-collectAsState()                  with pause/scroll/zoom
+Composables collect via           PressureChart renders the visible
+collectAsState()                  window (binary-searched slice)
   ↓
-Games/exercises read
-latestPressure each frame
+Games/exercises read latestPressure each frame;
+session traces come from historySnapshot() at save time
 ```
+
+The algorithmic core (detectors, RangeTracker, range derivation, game
+mapping, session JSON) is unit-tested in `app/src/test/`, and its behavior
+is specified platform-neutrally in [SPEC.md](SPEC.md).
 
 ### State Management
 
@@ -144,6 +149,8 @@ User context flows from device pairing. Games/exercises get their settings from 
 **File storage** (`context.filesDir/sessions/`) — large session recordings:
 - One JSON file per session (`session_{id}.json`) with full pressure trace
 - Index file (`sessions_index.json`) for fast listing without loading traces
+- Writes are atomic (temp file + rename); all I/O runs on Dispatchers.IO behind a
+  mutex; serialization lives in `SessionJson` (pure, covered by round-trip tests)
 - Auto-cleanup: keeps last 50 sessions, deletes oldest on save
 - Session types: `MinEqSession` (with peak markers), `ConstantEqSession` (with range/scoring data), `GameSession` (with score and pressure bounds), `MultiplayerGameSession` (per-player results)
 - Pressure traces are filtered to the exercise/game time window, not the full rolling buffer
