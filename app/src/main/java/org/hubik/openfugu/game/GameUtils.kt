@@ -2,6 +2,7 @@ package org.hubik.openfugu.game
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
@@ -64,7 +65,7 @@ fun DrawScope.drawScoreText(score: Int, canvasWidth: Float) {
         canvasWidth / 2f,
         80f,
         android.graphics.Paint().apply {
-            color = GameScoreColor.hashCode()
+            color = GameScoreColor.toArgb()
             textSize = 64f
             isAntiAlias = true
             typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -79,7 +80,7 @@ fun DrawScope.drawPressureText(text: String, canvasHeight: Float, dpToPx: Float)
         16f * dpToPx,
         canvasHeight - 16f * dpToPx,
         android.graphics.Paint().apply {
-            color = GamePressureColor.hashCode()
+            color = GamePressureColor.toArgb()
             textSize = 13f * dpToPx
             isAntiAlias = true
         }

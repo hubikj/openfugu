@@ -256,6 +256,9 @@ private suspend fun shareSession(context: android.content.Context, viewModel: EF
         val file = withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "shared_sessions")
             dir.mkdirs()
+            // Old share copies accumulate otherwise; ones from previous shares
+            // are no longer referenced by any in-flight intent we control.
+            dir.listFiles()?.forEach { it.delete() }
             val userStr = session.userName?.replace(" ", "_") ?: "unknown"
             val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.getDefault()).format(Date(session.timestamp))
             val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")

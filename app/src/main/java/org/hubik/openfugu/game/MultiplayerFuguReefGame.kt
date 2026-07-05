@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
@@ -379,8 +380,8 @@ fun MultiplayerFuguReefScreen(
                     playerStates.sortedByDescending { it.score }.forEachIndexed { idx, ps ->
                         val y = 28f * dpToPx + idx * lineHeight
                         val label = "${ps.info.userName ?: ps.info.displayName}: ${ps.score}"
-                        textPaint.color = if (ps.alive) ps.info.color.hashCode()
-                            else ps.info.color.copy(alpha = 0.4f).hashCode()
+                        textPaint.color = if (ps.alive) ps.info.color.toArgb()
+                            else ps.info.color.copy(alpha = 0.4f).toArgb()
                         drawContext.canvas.nativeCanvas.drawText(label, w - 12f * dpToPx, y, textPaint)
                     }
                 }
@@ -398,7 +399,7 @@ fun MultiplayerFuguReefScreen(
                                 cx,
                                 h / 2f + fishRadiusPx * 2.5f,
                                 android.graphics.Paint().apply {
-                                    color = info.color.hashCode()
+                                    color = info.color.toArgb()
                                     textSize = 14f * dpToPx
                                     isAntiAlias = true
                                     typeface = android.graphics.Typeface.DEFAULT_BOLD

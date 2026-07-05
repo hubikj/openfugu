@@ -244,7 +244,6 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             else it
         }
         persistSavedDevices()
-        _connections.value = _connections.value.toMap()
     }
 
     fun setColor(address: String, colorArgb: Long?) {
@@ -253,7 +252,6 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             else it
         }
         persistSavedDevices()
-        _connections.value = _connections.value.toMap()
     }
 
     // --- User profile persistence ---

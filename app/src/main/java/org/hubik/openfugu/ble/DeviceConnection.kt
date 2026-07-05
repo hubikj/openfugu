@@ -347,7 +347,7 @@ class DeviceConnection(
 
         val isCustomChar = char.service.uuid == EFuguUuids.PRESSURE_SERVICE ||
                 char.service.uuid == EFuguUuids.REALTIME_PRESSURE_SERVICE ||
-                (char.uuid == EFuguUuids.BATTERY_LEVEL && _batteryLevel.value != null)
+                char.uuid == EFuguUuids.BATTERY_LEVEL
 
         if (isCustomChar && (props and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0)) {
             enableNotifications(gatt, char)

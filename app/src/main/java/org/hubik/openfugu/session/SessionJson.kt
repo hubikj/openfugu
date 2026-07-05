@@ -78,7 +78,7 @@ internal object SessionJson {
         val timestamp = json.getLong("timestamp")
         val durationMs = json.getLong("durationMs")
         val deviceName = json.getString("deviceName")
-        val userName = json.optString("userName").takeIf { it.isNotEmpty() && it != "null" }
+        val userName = if (json.isNull("userName")) null else json.getString("userName")
         val trace = parsePressureTrace(json.getJSONArray("pressureTrace"))
 
         return when (type) {
@@ -117,7 +117,7 @@ internal object SessionJson {
                     val p = playersArr.getJSONObject(i)
                     Session.PlayerResult(
                         deviceName = p.getString("deviceName"),
-                        userName = p.optString("userName").takeIf { it.isNotEmpty() && it != "null" },
+                        userName = if (p.isNull("userName")) null else p.getString("userName"),
                         colorArgb = if (p.isNull("colorArgb")) null else p.getLong("colorArgb"),
                         score = p.getInt("score"),
                         rank = p.getInt("rank"),
@@ -173,7 +173,7 @@ internal object SessionJson {
         timestamp = json.getLong("timestamp"),
         durationMs = json.getLong("durationMs"),
         deviceName = json.getString("deviceName"),
-        userName = json.optString("userName").takeIf { it.isNotEmpty() && it != "null" },
+        userName = if (json.isNull("userName")) null else json.getString("userName"),
         summaryText = json.getString("summaryText")
     )
 

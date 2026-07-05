@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -141,7 +142,7 @@ fun PressureChart(
                 val labelTextSize = with(density) { 10.sp.toPx() }
 
                 val textPaint = android.graphics.Paint().apply {
-                    color = labelColor.hashCode()
+                    color = labelColor.toArgb()
                     textSize = labelTextSize
                     isAntiAlias = true
                 }

@@ -1361,14 +1361,16 @@ fun DevicePickerDialog(
         },
         confirmButton = {
             if (multiSelect) {
+                // Devices can disconnect while the dialog is open; count only
+                // selections that are still connected, or Start silently no-ops.
+                val validSelection = selectedAddresses.filter { it in connections }
                 Button(
                     onClick = {
-                        val selected = selectedAddresses.mapNotNull { addr -> connections[addr] }
-                        onMultiSelect(selected)
+                        onMultiSelect(validSelection.mapNotNull { addr -> connections[addr] })
                     },
-                    enabled = selectedAddresses.size >= 2
+                    enabled = validSelection.size >= 2
                 ) {
-                    Text("Start (${selectedAddresses.size})")
+                    Text("Start (${validSelection.size})")
                 }
             } else {
                 TextButton(onClick = onDismiss) { Text("Close") }

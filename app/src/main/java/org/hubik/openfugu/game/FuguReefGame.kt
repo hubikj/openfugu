@@ -76,6 +76,8 @@ fun FuguReefScreen(
     var gameStartMs by remember { mutableLongStateOf(0L) }
     var fishY by remember { mutableFloatStateOf(0.85f) }   // normalized 0=top, 1=bottom; start near bottom
     var scrollOffset by remember { mutableFloatStateOf(0f) }  // dp, for seabed wave animation
+    // Actual canvas size in dp, reported from the Canvas draw scope.
+    var canvasSizeDp by remember { mutableStateOf(Pair(400f, 800f)) }
     var obstacles by remember { mutableStateOf(listOf<Obstacle>()) }
     var score by remember { mutableIntStateOf(0) }
     var highScore by remember { mutableIntStateOf(0) }
@@ -145,9 +147,8 @@ fun FuguReefScreen(
                 // Remove off-screen obstacles
                 updated.removeAll { it.x < -(OBSTACLE_WIDTH_DP * 2) }
 
-                // Spawn new obstacles
-                // Use screen width in dp (approximate — will be close enough for spawning)
-                val screenWidthDp = with(density) { 400.dp.toPx() / density.density }.toFloat()
+                // Spawn new obstacles, based on the real canvas width
+                val screenWidthDp = canvasSizeDp.first
                 val rightEdge = updated.maxOfOrNull { it.x }
                 val spawnThreshold = screenWidthDp + OBSTACLE_WIDTH_DP
                 if (rightEdge == null || rightEdge < spawnThreshold) {
@@ -205,6 +206,9 @@ fun FuguReefScreen(
                 val w = size.width
                 val h = size.height
                 val dpToPx = density.density
+                if (canvasSizeDp.first != w / dpToPx || canvasSizeDp.second != h / dpToPx) {
+                    canvasSizeDp = Pair(w / dpToPx, h / dpToPx)
+                }
                 val fishRadiusPx = FISH_RADIUS_DP * dpToPx
                 val obstacleWidthPx = OBSTACLE_WIDTH_DP * dpToPx
                 val fishX = w * 0.25f

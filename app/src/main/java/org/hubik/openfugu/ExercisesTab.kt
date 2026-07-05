@@ -446,6 +446,12 @@ fun ExercisesTab(
             val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
             var pendingDeletes by remember { mutableStateOf(setOf<String>()) }
 
+            // If the tab leaves composition during the undo window, commit the
+            // pending deletes — otherwise they silently reappear on return.
+            DisposableEffect(Unit) {
+                onDispose { pendingDeletes.forEach { onDeleteSession(it) } }
+            }
+
             // Commit all pending deletes after snackbar timeout
             LaunchedEffect(pendingDeletes) {
                 if (pendingDeletes.isEmpty()) return@LaunchedEffect

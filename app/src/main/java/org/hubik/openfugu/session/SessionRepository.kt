@@ -98,6 +98,15 @@ class SessionRepository(private val context: Context) {
 
     private fun cleanupOldSessionsLocked() {
         val index = loadIndexLocked()
+        // Delete orphans: files that fell out of the index (corrupt, unknown
+        // future type, or a crash between write and indexing) would otherwise
+        // never be reclaimed by the MAX_SESSIONS cap.
+        val known = index.mapTo(HashSet()) { "session_${it.id}.json" }
+        sessionsDir.listFiles()?.forEach { f ->
+            if (f.name.startsWith("session_") && f.name.endsWith(".json") && f.name !in known) {
+                f.delete()
+            }
+        }
         if (index.size <= MAX_SESSIONS) return
         index.drop(MAX_SESSIONS).forEach { entry ->
             File(sessionsDir, "session_${entry.id}.json").delete()

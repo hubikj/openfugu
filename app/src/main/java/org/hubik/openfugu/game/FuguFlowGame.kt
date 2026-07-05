@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -735,7 +736,7 @@ private fun DrawScope.drawFlowGame(
             w / 2f,
             h / 2f + 40f,
             android.graphics.Paint().apply {
-                color = CountdownColor.hashCode()
+                color = CountdownColor.toArgb()
                 textSize = 96f
                 isAntiAlias = true
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -747,7 +748,7 @@ private fun DrawScope.drawFlowGame(
             w / 2f,
             h / 2f + 100f,
             android.graphics.Paint().apply {
-                color = CountdownColor.hashCode()
+                color = CountdownColor.toArgb()
                 textSize = 32f
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.CENTER
@@ -876,7 +877,7 @@ private fun DrawScope.drawFlowGame(
                 w / 2f,
                 120f,
                 android.graphics.Paint().apply {
-                    color = GoodColor.hashCode()
+                    color = GoodColor.toArgb()
                     textSize = 36f
                     isAntiAlias = true
                     typeface = android.graphics.Typeface.DEFAULT_BOLD
@@ -891,7 +892,7 @@ private fun DrawScope.drawFlowGame(
                 cursorX,
                 playerPxY - 16f * dpToPx,
                 android.graphics.Paint().apply {
-                    color = zoneColor.hashCode()
+                    color = zoneColor.toArgb()
                     textSize = 14f * dpToPx
                     isAntiAlias = true
                     typeface = android.graphics.Typeface.DEFAULT_BOLD

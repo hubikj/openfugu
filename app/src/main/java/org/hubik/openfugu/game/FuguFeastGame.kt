@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -418,7 +419,7 @@ fun FuguFeastScreen(
                         w / 2f,
                         120f,
                         android.graphics.Paint().apply {
-                            color = GamePressureColor.hashCode()
+                            color = GamePressureColor.toArgb()
                             textSize = 32f
                             isAntiAlias = true
                             textAlign = android.graphics.Paint.Align.CENTER
