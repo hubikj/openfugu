@@ -375,6 +375,12 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         persistDeviceUserPairings()
     }
 
+    fun unpairDevice(deviceAddress: String) {
+        _deviceUserPairings.value = _deviceUserPairings.value
+            .filter { it.deviceAddress != deviceAddress }
+        persistDeviceUserPairings()
+    }
+
     fun userForDevice(address: String): UserProfile? {
         val userId = _deviceUserPairings.value.find { it.deviceAddress == address }?.userId
             ?: return null

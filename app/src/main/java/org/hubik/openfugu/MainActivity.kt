@@ -413,7 +413,10 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
                 },
                 onSessionClick = { sessionId -> viewingSessionId = sessionId },
                 onDeleteSession = { sessionId -> viewModel.deleteSession(sessionId) },
-                onPairUser = { addr, userId -> viewModel.pairDeviceToUser(addr, userId) },
+                onPairUser = { addr, userId ->
+                    if (userId != null) viewModel.pairDeviceToUser(addr, userId)
+                    else viewModel.unpairDevice(addr)
+                },
                 modifier = Modifier.padding(padding)
             )
             2 -> DevicesTab(
@@ -430,7 +433,10 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
                 onForget = { viewModel.forgetDevice(it) },
                 onNicknameSet = { addr, name -> viewModel.setNickname(addr, name) },
                 onColorSet = { addr, color -> viewModel.setColor(addr, color) },
-                onPairUser = { addr, userId -> viewModel.pairDeviceToUser(addr, userId) },
+                onPairUser = { addr, userId ->
+                    if (userId != null) viewModel.pairDeviceToUser(addr, userId)
+                    else viewModel.unpairDevice(addr)
+                },
                 modifier = Modifier.padding(padding)
             )
             3 -> UsersTab(
@@ -540,7 +546,10 @@ fun SingleDevicePanel(
             onDisconnect = { viewModel.disconnectDevice(connection.address) },
             onNicknameSet = { viewModel.setNickname(connection.address, it) },
             onColorSet = { viewModel.setColor(connection.address, it) },
-            onPairUser = { viewModel.pairDeviceToUser(connection.address, it) }
+            onPairUser = { userId ->
+                if (userId != null) viewModel.pairDeviceToUser(connection.address, userId)
+                else viewModel.unpairDevice(connection.address)
+            }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -743,6 +752,7 @@ fun CompactDevicePanel(
                 viewModel.setNickname(connection.address, nickname)
                 viewModel.setColor(connection.address, color)
                 if (userId != null) viewModel.pairDeviceToUser(connection.address, userId)
+                else viewModel.unpairDevice(connection.address)
                 showEditDialog = false
             }
         )
@@ -764,7 +774,7 @@ fun DeviceCard(
     onDisconnect: () -> Unit,
     onNicknameSet: (String?) -> Unit,
     onColorSet: (Long?) -> Unit,
-    onPairUser: (String) -> Unit = {}
+    onPairUser: (String?) -> Unit = {}
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
     val pairedUser = userProfiles.find { it.id == pairedUserId }
@@ -852,7 +862,7 @@ fun DeviceCard(
             onConfirm = { nickname, color, userId ->
                 onNicknameSet(nickname)
                 onColorSet(color)
-                if (userId != null) onPairUser(userId)
+                onPairUser(userId)
                 showEditDialog = false
             }
         )
@@ -950,7 +960,7 @@ fun DevicesTab(
     onForget: (String) -> Unit,
     onNicknameSet: (String, String?) -> Unit,
     onColorSet: (String, Long?) -> Unit,
-    onPairUser: (String, String) -> Unit,
+    onPairUser: (String, String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1159,7 +1169,7 @@ fun SavedDeviceRow(
     onForget: () -> Unit,
     onNicknameSet: (String?) -> Unit,
     onColorSet: (Long?) -> Unit,
-    onPairUser: (String) -> Unit = {}
+    onPairUser: (String?) -> Unit = {}
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
     val pairedUser = userProfiles.find { it.id == pairedUserId }
@@ -1229,7 +1239,7 @@ fun SavedDeviceRow(
             onConfirm = { nickname, color, userId ->
                 onNicknameSet(nickname)
                 onColorSet(color)
-                if (userId != null) onPairUser(userId)
+                onPairUser(userId)
                 showEditDialog = false
             }
         )
@@ -1244,7 +1254,7 @@ fun DevicePickerDialog(
     deviceUserPairings: List<DeviceUserPairing>,
     selectedAddress: String? = null,
     onSelect: (DeviceConnection) -> Unit = {},
-    onPairUser: (deviceAddress: String, userId: String) -> Unit,
+    onPairUser: (deviceAddress: String, userId: String?) -> Unit,
     onDismiss: () -> Unit,
     multiSelect: Boolean = false,
     onMultiSelect: (List<DeviceConnection>) -> Unit = {}
@@ -1337,6 +1347,15 @@ fun DevicePickerDialog(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false }
                                 ) {
+                                    if (pairedUser != null) {
+                                        DropdownMenuItem(
+                                            text = { Text("No user") },
+                                            onClick = {
+                                                onPairUser(device.address, null)
+                                                expanded = false
+                                            }
+                                        )
+                                    }
                                     userProfiles.forEach { profile ->
                                         DropdownMenuItem(
                                             text = { Text(profile.name) },
@@ -1418,12 +1437,19 @@ fun DeviceEditDialog(
                     val selectedUser = userProfiles.find { it.id == selectedUserId }
                     Box {
                         OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(selectedUser?.name ?: "None")
+                            Text(selectedUser?.name ?: "No user")
                         }
                         DropdownMenu(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("No user") },
+                                onClick = {
+                                    selectedUserId = null
+                                    expanded = false
+                                }
+                            )
                             userProfiles.forEach { profile ->
                                 DropdownMenuItem(
                                     text = { Text(profile.name) },

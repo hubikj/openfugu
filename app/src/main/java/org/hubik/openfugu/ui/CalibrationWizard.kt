@@ -176,7 +176,10 @@ fun CalibrationWizard(
                     deviceUserPairings = deviceUserPairings,
                     selectedAddress = effectiveAddress,
                     onDeviceSelected = { selectedAddress = it },
-                    onPairUser = { addr, userId -> viewModel.pairDeviceToUser(addr, userId) },
+                    onPairUser = { addr, userId ->
+                        if (userId != null) viewModel.pairDeviceToUser(addr, userId)
+                        else viewModel.unpairDevice(addr)
+                    },
                     modifier = Modifier.padding(padding),
                     onNext = {
                         pinnedAddress = effectiveAddress
@@ -251,7 +254,7 @@ private fun IntroStep(
     deviceUserPairings: List<org.hubik.openfugu.ble.DeviceUserPairing>,
     selectedAddress: String?,
     onDeviceSelected: (String) -> Unit,
-    onPairUser: (String, String) -> Unit,
+    onPairUser: (String, String?) -> Unit,
     modifier: Modifier = Modifier,
     onNext: () -> Unit
 ) {

@@ -50,7 +50,7 @@ fun ExercisesTab(
     onMultiplayerGameStart: (String, List<DeviceConnection>) -> Unit = { _, _ -> },
     onSessionClick: (String) -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
-    onPairUser: (String, String) -> Unit,
+    onPairUser: (String, String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
