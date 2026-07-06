@@ -154,7 +154,13 @@ fun EFuguApp(
     importIntent: Intent? = null,
     onImportIntentHandled: () -> Unit = {}
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    // First run (no saved devices yet): start on the Devices tab — the user
+    // must connect a device first, everything else flows from device-user
+    // pairing. Derived from state, not a stored flag, so it also recovers
+    // sensibly after a data clear.
+    var selectedTab by remember {
+        mutableIntStateOf(if (viewModel.savedDevices.value.isEmpty()) 2 else 0)
+    }
     var activeGame by remember { mutableStateOf<String?>(null) }
     var activeGameDeviceAddress by remember { mutableStateOf<String?>(null) }
     var activeGameDeviceAddresses by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -196,6 +202,22 @@ fun EFuguApp(
             }
         }
         onImportIntentHandled()
+    }
+
+    // First-run guidance: once a device is connected but no user exists yet,
+    // prompt to create the first user, pair it to that device, and offer the
+    // calibration wizard. Dialogs are composed after the full-screen early
+    // returns below so they never cover a game or the wizard.
+    var showFirstUserDialog by remember { mutableStateOf(false) }
+    var firstUserPromptDismissed by remember { mutableStateOf(false) }
+    var calibrateOfferUser by remember { mutableStateOf<UserProfile?>(null) }
+    val rootConnectionStates = connections.mapValues { (_, conn) -> conn.state.collectAsState().value }
+    val firstConnectedAddress = rootConnectionStates.entries
+        .firstOrNull { it.value is DeviceConnectionState.Connected }?.key
+    LaunchedEffect(firstConnectedAddress, userProfiles) {
+        if (firstConnectedAddress != null && userProfiles.isEmpty() && !firstUserPromptDismissed) {
+            showFirstUserDialog = true
+        }
     }
 
 
@@ -482,12 +504,94 @@ fun EFuguApp(
                 userProfiles = userProfiles,
                 savedDevices = savedDevices,
                 deviceUserPairings = deviceUserPairings,
-                onAddUser = { name -> viewModel.addUser(name) },
+                onAddUser = { name -> calibrateOfferUser = viewModel.addUser(name) },
                 onSelectUser = { userId -> showUserDetail = userId },
                 modifier = Modifier.padding(padding)
             )
         }
     }
+
+    if (showFirstUserDialog) {
+        val firstDeviceName = firstConnectedAddress?.let { addr ->
+            savedDevices.find { it.address == addr }?.displayName ?: connections[addr]?.displayName
+        } ?: "your device"
+        FirstUserDialog(
+            deviceName = firstDeviceName,
+            onDismiss = {
+                showFirstUserDialog = false
+                firstUserPromptDismissed = true
+            },
+            onCreate = { name ->
+                val profile = viewModel.addUser(name)
+                firstConnectedAddress?.let { viewModel.pairDeviceToUser(it, profile.id) }
+                showFirstUserDialog = false
+                calibrateOfferUser = profile
+            }
+        )
+    }
+
+    calibrateOfferUser?.let { offerUser ->
+        AlertDialog(
+            onDismissRequest = { calibrateOfferUser = null },
+            title = { Text("Calibrate ${offerUser.name}?") },
+            text = {
+                Text(
+                    "The calibration wizard measures a comfortable pressure range, and " +
+                        "games and exercises scale to it. You can also run it later from " +
+                        "the user detail screen."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    calibratingUserId = offerUser.id
+                    calibrateOfferUser = null
+                }) { Text("Calibrate Now") }
+            },
+            dismissButton = {
+                TextButton(onClick = { calibrateOfferUser = null }) { Text("Later") }
+            }
+        )
+    }
+}
+
+@Composable
+fun FirstUserDialog(
+    deviceName: String,
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create Your User") },
+        text = {
+            Column {
+                Text(
+                    "Your device is connected. Create a user to store calibration and " +
+                        "settings — it will be assigned to $deviceName."
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(name.trim()) },
+                enabled = name.isNotBlank()
+            ) { Text("Create") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Later") }
+        }
+    )
 }
 
 // =============================================================================
@@ -1008,6 +1112,29 @@ fun DevicesTab(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // First-run welcome: no device has ever been saved
+        if (savedDevices.isEmpty()) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Welcome to OpenFugu", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Turn on your eFugu device and it will appear below — tap it to " +
+                            "connect. After connecting, you will create a user and " +
+                            "calibrate your pressure range.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+
         // Scan controls
         Row(
             modifier = Modifier
