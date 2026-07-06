@@ -24,6 +24,11 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - [x] Unified PressureChart with optional overlays (peak markers, target range, scoring colors)
 - [x] Dark/light theme (Material 3 dynamic theming)
 - [x] Portrait orientation lock
+- [x] Session import — shared `.fugu` session files open in OpenFugu (validated, saved to history, shown in the viewer)
+- [x] First-run guided setup (start on Devices tab with welcome card → first user dialog after connect → calibration offer after any user creation)
+- [x] Device-user assignment management (remove assigned user from device, assigned devices listed on user detail)
+- [x] App version shown in the Logs screen and logged on startup
+- [x] Session files rounded to 3 decimals (compact, no floating-point noise)
 
 ---
 
@@ -37,16 +42,16 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - [x] Per-session JSON files in app internal storage with index for fast listing
 - [x] History section in Exercises tab (last 20 sessions)
 - [x] Session viewer with PressureChart replay (full zoom/scroll) + stats card
-- [x] Share via Android share sheet (JSON file via FileProvider)
+- [x] Share via Android share sheet (`.fugu` file — JSON inside — via FileProvider)
 - [x] Min equalization: full replay with peak markers (green/red diamonds)
 - [x] Constant equalization: full replay with target range overlay + scoring colors
 - [x] Games: pressure trace + score
 - [x] Delete sessions
+- [x] Re-import: shared sessions are `.fugu` files; tapping one opens it in OpenFugu (imported into history, viewable, deletable). Custom extension keeps OpenFugu out of the "open with" list for ordinary JSON files.
 
 **Future enhancements:**
 - [ ] QR code sharing — student's phone shows QR, instructor scans to receive session data (works offline, no accounts)
-- [ ] Shareable link — upload session to a simple cloud endpoint, get a short URL that opens the session in-app or browser
-- [ ] Re-import: open a shared/received session in the viewer
+- [ ] Shareable link — upload session to a simple cloud endpoint, get a short URL that opens the session in-app or browser (the expected long-term sharing path once internet features land)
 - [ ] Save from Live tab (manual "save session" button for free recording)
 - [ ] FIT file export — save sessions as Garmin FIT files (breathwork activity type) so users can log equalization training in Garmin Connect alongside their dive/fitness data. The FIT SDK is open source and supports custom developer fields for pressure data.
 

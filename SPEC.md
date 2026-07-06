@@ -261,7 +261,10 @@ key encodings: trace points as `{"p": absolute hPa, "r": relative hPa,
 (trace points, peak markers, means, bounds, ranges, percentages) are
 rounded to **3 decimals** on write — 0.001 hPa is ten times finer than the
 sensor's 1 Pa resolution, and it keeps files free of floating-point noise.
-Readers must not assume more precision than that.
+Readers must not assume more precision than that. Shared session files use
+the **`.fugu`** extension (JSON content) and travel as
+`application/octet-stream` — the Android app only registers to open that
+MIME type, so ports must share sessions the same way to interoperate.
 
 ## 8. Safety invariants (every port MUST keep these)
 

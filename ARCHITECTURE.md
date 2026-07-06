@@ -27,7 +27,7 @@ app/src/main/java/org/hubik/openfugu/
 ├── ui/                      — Shared UI components and screens
 │   ├── SharedComponents.kt  — AppColors, StatRow, HpaValueRow, PeakConfirmDialog
 │   ├── CalibrationWizard.kt — Multi-step pressure calibration (4 steps + summary)
-│   ├── UserDetailScreen.kt  — Per-user settings (calibration, range, expert mode)
+│   ├── UserDetailScreen.kt  — Per-user settings (calibration, range, expert mode, assigned devices)
 │   └── theme/               — Material 3 theme (Color, Theme, Type)
 │
 ├── session/                 — Session recording and replay
@@ -114,6 +114,7 @@ The app uses a flat navigation model — no navigation library. Full-screen rout
 EFuguApp {
   if (showLogs)           → full-screen LogsTab with back button
   if (showUserDetail)     → full-screen UserDetailScreen
+  if (viewingSessionId)   → full-screen SessionViewerScreen
   if (calibratingUserId)  → full-screen CalibrationWizard
   if (activeGame)         → full-screen game/exercise (no chrome)
   else                    → Scaffold with bottom tabs
@@ -122,7 +123,29 @@ EFuguApp {
 
 Bottom tabs: **Live** | **Exercises** | **Devices** | **Users**
 
-Logs are accessible from the top-right icon on the main screen.
+Logs are accessible from the top-right icon on the main screen. The Logs
+screen header shows the app version (from `BuildConfig`), and the version is
+also the first line logged on startup so it rides along in copied logs.
+
+### First-run guidance
+
+There is no stored "onboarded" flag — guidance derives from state:
+- No saved devices → the app starts on the Devices tab, which shows a
+  welcome card (auto-scan already runs on open).
+- A device connects while no user profiles exist → a dialog offers to
+  create the first user and pairs it to that device.
+- After creating a user (from the first-run dialog or the Users tab), a
+  dialog offers to launch the calibration wizard.
+
+### Session import
+
+`MainActivity` runs as `launchMode="singleTask"` and registers `ACTION_VIEW`
+/ `ACTION_SEND` intent filters for `application/octet-stream` — sessions are
+shared as `.fugu` files (JSON inside), which receiving apps resolve to that
+MIME type. Incoming intents (onCreate or onNewIntent) flow into `EFuguApp`
+as Compose state; `EFuguViewModel.importSession` validates and saves the
+session into history, then the standard session viewer opens it. Foreign
+files are rejected with a toast.
 
 ## Key Design Decisions
 
