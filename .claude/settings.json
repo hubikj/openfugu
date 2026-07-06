@@ -1,13 +1,13 @@
 {
   "permissions": {
     "deny": [
-      "Read(keystore.properties)",
-      "Edit(keystore.properties)",
-      "Edit(local.properties)",
-      "Read(*.jks)",
-      "Edit(*.jks)",
-      "Read(*.keystore)",
-      "Edit(*.keystore)"
+      "Read(**/keystore.properties)",
+      "Edit(**/keystore.properties)",
+      "Edit(**/local.properties)",
+      "Read(**/*.jks)",
+      "Edit(**/*.jks)",
+      "Read(**/*.keystore)",
+      "Edit(**/*.keystore)"
     ]
   }
 }
