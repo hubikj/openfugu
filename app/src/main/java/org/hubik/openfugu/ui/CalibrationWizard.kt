@@ -35,6 +35,18 @@ import kotlin.math.sqrt
 
 private enum class WizardStep { INTRO, MIN_EQ, MAX_POSITIVE, MAX_NEGATIVE, SUMMARY }
 
+// In-progress step results live at wizard level (not in the step composables)
+// so a step unmounting during a connection blip doesn't lose progress.
+private class MinEqStepResults {
+    var successfulPeaks by mutableStateOf<List<Double>>(emptyList())
+    var peakMarkers by mutableStateOf<List<PeakMarker>>(emptyList())
+    var failedCount by mutableIntStateOf(0)
+}
+
+private class HoldStepResults {
+    var completedHolds by mutableStateOf<List<Double>>(emptyList())
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalibrationWizard(
@@ -50,6 +62,9 @@ fun CalibrationWizard(
     var minEqResult by remember { mutableStateOf<Double?>(null) }
     var maxPositiveResult by remember { mutableStateOf<Double?>(null) }
     var maxNegativeResult by remember { mutableStateOf<Double?>(null) }
+    val minEqProgress = remember { MinEqStepResults() }
+    val maxPositiveProgress = remember { HoldStepResults() }
+    val maxNegativeProgress = remember { HoldStepResults() }
 
     // Device selection
     val savedDevices by viewModel.savedDevices.collectAsState()
@@ -68,6 +83,10 @@ fun CalibrationWizard(
     val connectedList = connections.values.filter { connectionStates[it.address] is DeviceConnectionState.Connected }
     var selectedAddress by remember { mutableStateOf<String?>(null) }
 
+    // Once the user leaves the intro step the device is pinned — a connection
+    // blip must never silently switch the wizard to another device.
+    var pinnedAddress by remember { mutableStateOf<String?>(null) }
+
     // Auto-select: device paired to this user > first connected
     val autoAddress = remember(connectedList.map { it.address }, deviceUserPairings, userId) {
         val pairedAddress = deviceUserPairings
@@ -79,7 +98,7 @@ fun CalibrationWizard(
             connectedList.firstOrNull()?.address
         }
     }
-    val effectiveAddress = selectedAddress ?: autoAddress
+    val effectiveAddress = pinnedAddress ?: selectedAddress ?: autoAddress
     val selectedConnection = effectiveAddress?.let { addr -> connectedList.find { it.address == addr } }
     val selectedSaved = savedDevices.find { it.address == effectiveAddress }
     val deviceLineColor = selectedSaved?.colorArgb?.let { Color(it.toInt()) }
@@ -96,8 +115,38 @@ fun CalibrationWizard(
             )
         }
     ) { padding ->
-        if (selectedConnection == null) {
-            Box(
+        when {
+            // Summary needs no live connection — a blip must not block saving
+            step == WizardStep.SUMMARY -> SummaryStep(
+                minEq = minEqResult,
+                maxPositive = maxPositiveResult,
+                maxNegative = maxNegativeResult,
+                hadPriorCalibration = calibratingProfile?.lastCalibratedAt != null,
+                modifier = Modifier.padding(padding),
+                onSave = {
+                    val profile = calibratingProfile ?: return@SummaryStep
+                    val allSkipped = minEqResult == null && maxPositiveResult == null && maxNegativeResult == null
+                    if (allSkipped) {
+                        // All steps skipped — clear calibration data
+                        viewModel.updateUser(profile.copy(
+                            minEqPressureHPa = null,
+                            maxPositiveHPa = null,
+                            maxNegativeHPa = null,
+                            lastCalibratedAt = null
+                        ))
+                    } else {
+                        viewModel.updateUser(profile.copy(
+                            minEqPressureHPa = minEqResult ?: profile.minEqPressureHPa,
+                            maxPositiveHPa = maxPositiveResult ?: profile.maxPositiveHPa,
+                            maxNegativeHPa = maxNegativeResult ?: profile.maxNegativeHPa,
+                            lastCalibratedAt = System.currentTimeMillis()
+                        ))
+                    }
+                    onComplete()
+                },
+                onBack = onBack
+            )
+            selectedConnection == null && pinnedAddress == null -> Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
@@ -109,8 +158,13 @@ fun CalibrationWizard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        } else {
-            when (step) {
+            selectedConnection == null -> DeviceDisconnectedNotice(
+                deviceName = selectedSaved?.displayName
+                    ?: pinnedAddress?.let { connections[it]?.displayName }
+                    ?: "the device",
+                modifier = Modifier.padding(padding)
+            )
+            else -> when (step) {
                 WizardStep.INTRO -> IntroStep(
                     userName = calibratingProfile?.name,
                     deviceName = selectedSaved?.displayName ?: selectedConnection.displayName,
@@ -124,10 +178,14 @@ fun CalibrationWizard(
                     onDeviceSelected = { selectedAddress = it },
                     onPairUser = { addr, userId -> viewModel.pairDeviceToUser(addr, userId) },
                     modifier = Modifier.padding(padding),
-                    onNext = { step = WizardStep.MIN_EQ }
+                    onNext = {
+                        pinnedAddress = effectiveAddress
+                        step = WizardStep.MIN_EQ
+                    }
                 )
                 WizardStep.MIN_EQ -> MinEqStep(
                     connection = selectedConnection,
+                    results = minEqProgress,
                     lineColor = deviceLineColor,
                     modifier = Modifier.padding(padding),
                     onNext = { result ->
@@ -141,6 +199,7 @@ fun CalibrationWizard(
                 )
                 WizardStep.MAX_POSITIVE -> MaxPressureStep(
                     connection = selectedConnection,
+                    results = maxPositiveProgress,
                     lineColor = deviceLineColor,
                     title = "Maximum Positive Pressure",
                     description = "Apply comfortable maximum positive pressure (Valsalva/Frenzel) and hold for 3 seconds.\n\nDon't push to your absolute max — choose a level you could sustain comfortably.",
@@ -158,6 +217,7 @@ fun CalibrationWizard(
                 )
                 WizardStep.MAX_NEGATIVE -> MaxPressureStep(
                     connection = selectedConnection,
+                    results = maxNegativeProgress,
                     lineColor = deviceLineColor,
                     title = "Maximum Negative Pressure (Optional)",
                     description = "Apply comfortable negative pressure (reverse pack) and hold for 3 seconds.\n\nSkip if you don't know reverse pack technique.",
@@ -173,35 +233,7 @@ fun CalibrationWizard(
                         step = WizardStep.SUMMARY
                     }
                 )
-                WizardStep.SUMMARY -> SummaryStep(
-                    minEq = minEqResult,
-                    maxPositive = maxPositiveResult,
-                    maxNegative = maxNegativeResult,
-                    hadPriorCalibration = calibratingProfile?.lastCalibratedAt != null,
-                    modifier = Modifier.padding(padding),
-                    onSave = {
-                        val profile = calibratingProfile ?: return@SummaryStep
-                        val allSkipped = minEqResult == null && maxPositiveResult == null && maxNegativeResult == null
-                        if (allSkipped) {
-                            // All steps skipped — clear calibration data
-                            viewModel.updateUser(profile.copy(
-                                minEqPressureHPa = null,
-                                maxPositiveHPa = null,
-                                maxNegativeHPa = null,
-                                lastCalibratedAt = null
-                            ))
-                        } else {
-                            viewModel.updateUser(profile.copy(
-                                minEqPressureHPa = minEqResult ?: profile.minEqPressureHPa,
-                                maxPositiveHPa = maxPositiveResult ?: profile.maxPositiveHPa,
-                                maxNegativeHPa = maxNegativeResult ?: profile.maxNegativeHPa,
-                                lastCalibratedAt = System.currentTimeMillis()
-                            ))
-                        }
-                        onComplete()
-                    },
-                    onBack = onBack
-                )
+                WizardStep.SUMMARY -> Unit
             }
         }
     }
@@ -321,6 +353,7 @@ private fun IntroStep(
 @Composable
 private fun MinEqStep(
     connection: DeviceConnection,
+    results: MinEqStepResults,
     lineColor: Color? = null,
     modifier: Modifier = Modifier,
     onNext: (Double?) -> Unit,
@@ -330,11 +363,6 @@ private fun MinEqStep(
     val latestPressure by connection.latestPressure.collectAsState()
     val chartData by connection.chartData.collectAsState()
 
-    // Track detected peaks
-    var detectedPeaks by remember { mutableStateOf<List<Double>>(emptyList()) }
-    var successfulPeaks by remember { mutableStateOf<List<Double>>(emptyList()) }
-    var peakMarkers by remember { mutableStateOf<List<PeakMarker>>(emptyList()) }
-    var failedCount by remember { mutableIntStateOf(0) }
     var lastDetectedPeak by remember { mutableStateOf<Double?>(null) }
     var lastDetectedPeakTimestamp by remember { mutableLongStateOf(0L) }
     var showConfirmDialog by remember { mutableStateOf(false) }
@@ -348,12 +376,12 @@ private fun MinEqStep(
             if (peak != null && !showConfirmDialog) {
                 lastDetectedPeak = peak.peakValueHPa
                 lastDetectedPeakTimestamp = peak.timestamp
-                detectedPeaks = detectedPeaks + peak.peakValueHPa
                 showConfirmDialog = true
             }
         }
     }
 
+    val successfulPeaks = results.successfulPeaks
     val mean = if (successfulPeaks.isNotEmpty()) successfulPeaks.average() else null
     val stddev = if (successfulPeaks.size >= 2) {
         val avg = successfulPeaks.average()
@@ -398,7 +426,7 @@ private fun MinEqStep(
         if (chartData.size >= 2) {
             PressureChart(
                 lines = listOf(ChartLine(chartData, lineColor)),
-                peakMarkers = peakMarkers,
+                peakMarkers = results.peakMarkers,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(150.dp)
@@ -413,7 +441,7 @@ private fun MinEqStep(
                 Text("Detected Peaks", style = MaterialTheme.typography.titleSmall)
                 Spacer(modifier = Modifier.height(8.dp))
                 StatRow("Successful equalizations", "${successfulPeaks.size}")
-                StatRow("Failed/Rejected", "$failedCount")
+                StatRow("Failed/Rejected", "${results.failedCount}")
                 if (mean != null) {
                     StatRow("Mean", "${"%.1f".format(mean)} hPa")
                 }
@@ -421,7 +449,7 @@ private fun MinEqStep(
                     StatRow("Std Dev", "${"%.1f".format(stddev)} hPa")
                 }
                 if (successfulPeaks.isNotEmpty()) {
-                    val rate = successfulPeaks.size.toFloat() / (successfulPeaks.size + failedCount)
+                    val rate = successfulPeaks.size.toFloat() / (successfulPeaks.size + results.failedCount)
                     StatRow("Success Rate", "${"%.0f".format(rate * 100)}%")
                 }
                 if (isStable) {
@@ -471,15 +499,15 @@ private fun MinEqStep(
         PeakConfirmDialog(
             peakValueHPa = lastDetectedPeak!!,
             onConfirm = {
-                successfulPeaks = successfulPeaks + lastDetectedPeak!!
-                peakMarkers = peakMarkers + PeakMarker(lastDetectedPeakTimestamp, lastDetectedPeak!!, true)
+                results.successfulPeaks = results.successfulPeaks + lastDetectedPeak!!
+                results.peakMarkers = results.peakMarkers + PeakMarker(lastDetectedPeakTimestamp, lastDetectedPeak!!, true)
                 // Drop anything half-risen while the dialog was open
                 detector.reset()
                 showConfirmDialog = false
             },
             onReject = {
-                failedCount++
-                peakMarkers = peakMarkers + PeakMarker(lastDetectedPeakTimestamp, lastDetectedPeak!!, false)
+                results.failedCount++
+                results.peakMarkers = results.peakMarkers + PeakMarker(lastDetectedPeakTimestamp, lastDetectedPeak!!, false)
                 detector.reset()
                 showConfirmDialog = false
             }
@@ -490,6 +518,7 @@ private fun MinEqStep(
 @Composable
 private fun MaxPressureStep(
     connection: DeviceConnection,
+    results: HoldStepResults,
     lineColor: Color? = null,
     title: String,
     description: String,
@@ -509,7 +538,6 @@ private fun MaxPressureStep(
     val latestPressure by connection.latestPressure.collectAsState()
     val chartData by connection.chartData.collectAsState()
 
-    var completedHolds by remember { mutableStateOf<List<Double>>(emptyList()) }
     var isHolding by remember { mutableStateOf(false) }
     var holdProgressMs by remember { mutableLongStateOf(0L) }
     var currentBest by remember { mutableStateOf(0.0) }
@@ -527,11 +555,12 @@ private fun MaxPressureStep(
             currentBest = detector.currentBestSustained
 
             if (result != null && result.valueHPa > 0.0) {
-                completedHolds = completedHolds + result.valueHPa
+                results.completedHolds = results.completedHolds + result.valueHPa
             }
         }
     }
 
+    val completedHolds = results.completedHolds
     val targetHolds = 3
     val average = if (completedHolds.isNotEmpty()) completedHolds.average() else null
     val effectivePressure = when (direction) {
@@ -646,6 +675,30 @@ private fun MaxPressureStep(
         ) {
             Text("Skip")
         }
+    }
+}
+
+@Composable
+private fun DeviceDisconnectedNotice(
+    deviceName: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        CircularProgressIndicator()
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Device disconnected", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Waiting for $deviceName to reconnect.\nYour calibration progress is kept.",
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
