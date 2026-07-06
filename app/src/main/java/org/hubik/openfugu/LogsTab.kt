@@ -39,7 +39,15 @@ fun LogHeader(messages: List<String>) {
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Log:", style = MaterialTheme.typography.titleSmall)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Log:", style = MaterialTheme.typography.titleSmall)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "OpenFugu ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TextButton(onClick = {
                 val clipboard = context.getSystemService(ClipboardManager::class.java)

@@ -122,6 +122,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     private val manuallyDisconnected = mutableSetOf<String>()
 
     init {
+        log("OpenFugu ${org.hubik.openfugu.BuildConfig.VERSION_NAME} (build ${org.hubik.openfugu.BuildConfig.VERSION_CODE})")
         loadSavedDevices()
         loadUserProfiles()
         loadDeviceUserPairings()
