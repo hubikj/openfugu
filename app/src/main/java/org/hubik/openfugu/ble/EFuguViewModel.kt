@@ -77,6 +77,10 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         private const val PREF_SAVED_DEVICES = "saved_devices_json"
         private const val PREF_USER_PROFILES = "user_profiles_json"
         private const val PREF_DEVICE_USER_PAIRINGS = "device_user_pairings_json"
+
+        // Session files are at most a few MB (20 Hz traces); anything larger
+        // than this is not a session file and must not be buffered into memory.
+        private const val MAX_IMPORT_BYTES = 20 * 1024 * 1024
     }
 
     private val bluetoothManager =
@@ -593,6 +597,34 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     suspend fun exportSessionJson(id: String): String? = sessionRepository.exportSessionJson(id)
+
+    /**
+     * Import a shared session file (content URI from an ACTION_VIEW/ACTION_SEND
+     * intent). The session is saved into history so the standard viewer, share,
+     * and delete actions all work on it. Returns null if the file is not a
+     * readable OpenFugu session.
+     */
+    suspend fun importSession(uri: android.net.Uri): org.hubik.openfugu.session.Session? {
+        val session = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val bytes = getApplication<Application>().contentResolver
+                    .openInputStream(uri)?.use { it.readNBytes(MAX_IMPORT_BYTES + 1) }
+                    ?: return@withContext null
+                if (bytes.size > MAX_IMPORT_BYTES) {
+                    Log.w(TAG, "Rejecting session import: file exceeds $MAX_IMPORT_BYTES bytes")
+                    return@withContext null
+                }
+                org.hubik.openfugu.session.SessionJson.sessionFromJson(JSONObject(bytes.decodeToString()))
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to import session from $uri", e)
+                null
+            }
+        } ?: return null
+        if (!sessionRepository.saveSession(session)) return null
+        _recentSessions.value = sessionRepository.loadIndex()
+        log("Imported session: ${session.type} from ${session.deviceName}")
+        return session
+    }
 
     override fun onCleared() {
         super.onCleared()

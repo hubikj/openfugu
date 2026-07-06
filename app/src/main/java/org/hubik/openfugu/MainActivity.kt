@@ -3,6 +3,7 @@ package org.hubik.openfugu
 import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
@@ -88,6 +89,10 @@ import org.hubik.openfugu.ui.theme.OpenFuguTheme
 class MainActivity : ComponentActivity() {
     private lateinit var efuguViewModel: EFuguViewModel
 
+    // Session file handed to us via ACTION_VIEW/ACTION_SEND. Compose state so
+    // EFuguApp picks it up whether it arrives in onCreate or onNewIntent.
+    private var importIntent by mutableStateOf<Intent?>(null)
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -100,15 +105,23 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        importIntent = intent
         setContent {
             OpenFuguTheme {
                 efuguViewModel = viewModel()
                 EFuguApp(
                     viewModel = efuguViewModel,
-                    onRequestPermissionsAndScan = { requestPermissionsAndScan() }
+                    onRequestPermissionsAndScan = { requestPermissionsAndScan() },
+                    importIntent = importIntent,
+                    onImportIntentHandled = { importIntent = null }
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        importIntent = intent
     }
 
     private fun requestPermissionsAndScan() {
@@ -135,7 +148,12 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit) {
+fun EFuguApp(
+    viewModel: EFuguViewModel,
+    onRequestPermissionsAndScan: () -> Unit,
+    importIntent: Intent? = null,
+    onImportIntentHandled: () -> Unit = {}
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
     var activeGame by remember { mutableStateOf<String?>(null) }
     var activeGameDeviceAddress by remember { mutableStateOf<String?>(null) }
@@ -157,6 +175,27 @@ fun EFuguApp(viewModel: EFuguViewModel, onRequestPermissionsAndScan: () -> Unit)
     // Auto-start scan on first composition
     LaunchedEffect(Unit) {
         onRequestPermissionsAndScan()
+    }
+
+    // Open a session file handed to us by another app (tap in a file manager,
+    // "open with" from an email or messenger attachment).
+    val importContext = LocalContext.current
+    LaunchedEffect(importIntent) {
+        val intent = importIntent ?: return@LaunchedEffect
+        val uri = when (intent.action) {
+            Intent.ACTION_VIEW -> intent.data
+            Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM, android.net.Uri::class.java)
+            else -> null
+        }
+        if (uri != null) {
+            val session = viewModel.importSession(uri)
+            if (session != null) {
+                viewingSessionId = session.id
+            } else {
+                Toast.makeText(importContext, "This file is not an OpenFugu session", Toast.LENGTH_LONG).show()
+            }
+        }
+        onImportIntentHandled()
     }
 
 

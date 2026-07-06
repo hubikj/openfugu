@@ -262,13 +262,16 @@ private suspend fun shareSession(context: android.content.Context, viewModel: EF
             val userStr = session.userName?.replace(" ", "_") ?: "unknown"
             val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.getDefault()).format(Date(session.timestamp))
             val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")
-            val fileName = "OpenFugu_${userStr}_${dateStr}_${typeStr}.json"
+            // .fugu extension (JSON inside): receiving apps resolve it to
+            // application/octet-stream, which is what our import intent filter
+            // matches — a plain .json file would offer OpenFugu for every JSON.
+            val fileName = "OpenFugu_${userStr}_${dateStr}_${typeStr}.fugu"
             File(dir, fileName).apply { writeText(json) }
         }
 
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
+            type = "application/octet-stream"
             putExtra(Intent.EXTRA_STREAM, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
