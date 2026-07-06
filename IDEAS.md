@@ -26,7 +26,7 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - [x] Portrait orientation lock
 - [x] Session import — shared `.fugu` session files open in OpenFugu (validated, saved to history, shown in the viewer)
 - [x] First-run guided setup (start on Devices tab with welcome card → first user dialog after connect → calibration offer after any user creation)
-- [x] Device-user assignment management (remove assigned user from device, assigned devices listed on user detail)
+- [x] Device-user assignment management (remove assigned user from device, assign/remove devices on user detail)
 - [x] App version shown in the Logs screen and logged on startup
 - [x] Session files rounded to 3 decimals (compact, no floating-point noise)
 

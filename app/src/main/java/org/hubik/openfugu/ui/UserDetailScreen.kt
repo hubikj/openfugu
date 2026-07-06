@@ -103,7 +103,7 @@ fun UserDetailScreen(
                         .mapNotNull { pairing -> savedDevices.find { it.address == pairing.deviceAddress } }
                     if (pairedDevices.isEmpty()) {
                         Text(
-                            "No device assigned. Assign this user to a device on the Devices tab.",
+                            "No device assigned.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -129,6 +129,54 @@ fun UserDetailScreen(
                                 }
                                 TextButton(onClick = { viewModel.unpairDevice(device.address) }) {
                                     Text("Remove")
+                                }
+                            }
+                        }
+                    }
+
+                    // Saved devices not yet assigned to this user can be assigned
+                    // right here; assigning re-pairs a device that belonged to
+                    // another user (a device has at most one user).
+                    val assignableDevices = savedDevices.filter { saved ->
+                        deviceUserPairings.none { it.deviceAddress == saved.address && it.userId == profile.id }
+                    }
+                    if (savedDevices.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Connect your device on the Devices tab first.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else if (assignableDevices.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        var expanded by remember { mutableStateOf(false) }
+                        Box {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Assign Device")
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                assignableDevices.forEach { device ->
+                                    val currentUser = deviceUserPairings
+                                        .find { it.deviceAddress == device.address }
+                                        ?.let { pairing -> userProfiles.find { it.id == pairing.userId } }
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (currentUser != null) "${device.displayName}  ·  ${currentUser.name}"
+                                                else device.displayName
+                                            )
+                                        },
+                                        onClick = {
+                                            viewModel.pairDeviceToUser(device.address, profile.id)
+                                            expanded = false
+                                        }
+                                    )
                                 }
                             }
                         }
