@@ -82,6 +82,19 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 
 ---
 
+### App-Wide Baseline Drift Monitor
+**Goal:** Surface baseline drift everywhere, not just in the minimum equalization screens. The stuck-detector notice (PeakDetector, 10 s elevated) only covers peak detection — drift equally corrupts the Live chart, exercises, and games.
+
+**Concept (from device-testing the stuck notice, 2026-07-06):**
+- [ ] Detect drift in `DeviceConnection` itself so every screen can observe it: a `baselineDriftSuspected` StateFlow set when the smoothed relative pressure stays away from zero for a long window — noticeably longer than the peak detector's 10 seconds (e.g. 60 s) to avoid false positives during normal training
+- [ ] Distinguish drift from legitimate sustained effort: drift is a *flat* elevated signal (low variance), training pressure moves — require both "away from zero for the whole window" and "nearly constant" before flagging
+- [ ] Watch both directions (`|smoothed|`) — weather/elevation drift can go negative too, which PeakDetector never sees
+- [ ] Live tab: warning on the device card, reuse `BaselineDriftDialog` → the Recalibrate action already there
+- [ ] Exercises tab device selector: warning chip so drift is caught *between* games
+- [ ] Never interrupt a running game — recalibration mid-game is impossible (clears history, changes the pressure mapping); at most surface the warning at game over
+
+---
+
 ## Needs Multiple Devices
 
 ### Multiplayer Fugu Reef [x] (and we could also have multiplayer Fugu Cave in a similar fashion)

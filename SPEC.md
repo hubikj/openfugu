@@ -62,9 +62,13 @@ Per-user, five steps:
    peaks are detected (PeakDetector, §4.1, `minPeakAmplitude = 5.0`) and each
    is confirmed or rejected by the user. Peaks detected while the
    confirmation dialog is open are discarded (no queue), and the detector is
-   reset when the dialog closes so nothing half-risen lingers. Result =
-   **mean of confirmed peaks**; stddev is shown, and the value is called
-   "stable" at **≥ 5 confirmed peaks with stddev < 2.0 hPa**.
+   reset when the dialog closes so nothing half-risen lingers. If the
+   detector reports its stuck state (§4.1) while a confirmation is pending,
+   the confirmation is cancelled and that peak is discarded — measured
+   against a drifted baseline it is suspect, and it counts as neither
+   confirmed nor rejected. Result = **mean of confirmed peaks**; stddev is
+   shown, and the value is called "stable" at **≥ 5 confirmed peaks with
+   stddev < 2.0 hPa**.
 3. **Maximum positive** — repeated sustained holds (target: three) detected
    with SustainedPressureDetector (§4.2, threshold **30.0 hPa**, hold 3 s);
    result = **average of completed holds**.
@@ -102,11 +106,11 @@ Parameters: `minPeakAmplitude = 5.0` hPa, `dropThreshold = 0.5`,
 - **Stuck state**: if the smoothed signal stays at or above
   `minPeakAmplitude` for **10 s** (200 samples at 20 Hz) without a peak
   being confirmed — whether waiting for baseline return or in an endless
-  rise — the detector reports a stuck state. Surface it to the user
-  ("pressure has not returned to zero — check the device or recalibrate");
-  do **not** auto-re-zero the baseline, which would silently change what
-  measured values mean. The state clears when the smoothed signal drops
-  below `minPeakAmplitude`, when a peak is confirmed, or on reset.
+  rise — the detector reports a stuck state. Surface it to the user with an
+  option to re-zero the device baseline (§1); re-zeroing must be
+  user-invoked — never automatic, which would silently change what measured
+  values mean. The state clears when the smoothed signal drops below
+  `minPeakAmplitude`, when a peak is confirmed, or on reset.
 
 ### 4.2 SustainedPressureDetector (calibration holds)
 
@@ -142,7 +146,9 @@ Parameters: `activationThreshold`, `lowerBound`, `upperBound`,
 Uses PeakDetector; every detected peak is confirmed/rejected by the user
 (peaks arriving while the confirmation dialog is open are discarded, and the
 detector is reset when the dialog closes). When the detector reports its
-stuck state (§4.1), show the recalibration hint. Reports mean, stddev,
+stuck state (§4.1), any pending peak confirmation is cancelled (the peak
+counts as neither confirmed nor rejected) and a dialog offers re-zeroing
+the device baseline. Reports mean, stddev,
 success/fail counts; result can be saved to the profile's
 `minEqPressureHPa`. Rewards the **smallest consistent** pressure — there is
 deliberately no reward for higher peaks.

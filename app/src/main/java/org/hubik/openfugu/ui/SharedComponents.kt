@@ -24,6 +24,36 @@ object AppColors {
 // Shared composables used across multiple screens
 // =============================================================================
 
+/**
+ * Shown when the peak detector reports its stuck state: the pressure reading
+ * has stayed elevated instead of returning to zero, so no peaks can be
+ * detected until the pressure drops or the device baseline is re-zeroed.
+ */
+@Composable
+fun BaselineDriftDialog(
+    onRecalibrate: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Pressure Not Returning to Zero") },
+        text = {
+            Text(
+                "The pressure reading has stayed elevated instead of returning to zero.\n\n" +
+                    "Check that the sensor opening is clean and unobstructed, then " +
+                    "recalibrate the baseline. Recalibrating clears the pressure chart " +
+                    "for this device."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onRecalibrate) { Text("Recalibrate") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Not now") }
+        }
+    )
+}
+
 /** Label–value row used in stats, summaries, and calibration displays. */
 @Composable
 fun StatRow(label: String, value: String) {

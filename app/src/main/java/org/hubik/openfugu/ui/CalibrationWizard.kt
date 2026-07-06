@@ -367,6 +367,7 @@ private fun MinEqStep(
     var lastDetectedPeakTimestamp by remember { mutableLongStateOf(0L) }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var detectorStuck by remember { mutableStateOf(false) }
+    var stuckDialogDismissed by remember { mutableStateOf(false) }
 
     // Feed the detector from the flow directly — snapshot state (collectAsState)
     // is conflated per frame and would drop samples.
@@ -375,6 +376,13 @@ private fun MinEqStep(
             if (reading == null) return@collect
             val peak = detector.addSample(reading.relativeHPa)
             detectorStuck = detector.isStuck
+            if (detectorStuck && showConfirmDialog) {
+                // Baseline drift makes the pending peak value suspect — drop it
+                // without counting it as confirmed or rejected
+                showConfirmDialog = false
+                lastDetectedPeak = null
+            }
+            if (!detectorStuck) stuckDialogDismissed = false
             if (peak != null && !showConfirmDialog) {
                 lastDetectedPeak = peak.peakValueHPa
                 lastDetectedPeakTimestamp = peak.timestamp
@@ -426,9 +434,10 @@ private fun MinEqStep(
 
         if (detectorStuck) {
             Text(
-                "Pressure has not returned to zero — check the device or recalibrate.",
+                "Pressure has not returned to zero — tap for options.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.clickable { stuckDialogDismissed = false }
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -522,6 +531,17 @@ private fun MinEqStep(
                 detector.reset()
                 showConfirmDialog = false
             }
+        )
+    }
+
+    if (detectorStuck && !stuckDialogDismissed) {
+        BaselineDriftDialog(
+            onRecalibrate = {
+                detector.reset()
+                detectorStuck = false
+                connection.resetCalibration()
+            },
+            onDismiss = { stuckDialogDismissed = true }
         )
     }
 }
