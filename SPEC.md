@@ -60,9 +60,11 @@ Per-user, five steps:
 1. **Intro** — pick/confirm a connected device.
 2. **Minimum equalization pressure** — user equalizes gently several times;
    peaks are detected (PeakDetector, §4.1, `minPeakAmplitude = 5.0`) and each
-   is confirmed or rejected by the user. Result = **mean of confirmed peaks**;
-   stddev is shown, and the value is called "stable" at **≥ 5 confirmed peaks
-   with stddev < 2.0 hPa**.
+   is confirmed or rejected by the user. Peaks detected while the
+   confirmation dialog is open are discarded (no queue), and the detector is
+   reset when the dialog closes so nothing half-risen lingers. Result =
+   **mean of confirmed peaks**; stddev is shown, and the value is called
+   "stable" at **≥ 5 confirmed peaks with stddev < 2.0 hPa**.
 3. **Maximum positive** — repeated sustained holds (target: three) detected
    with SustainedPressureDetector (§4.2, threshold **30.0 hPa**, hold 3 s);
    result = **average of completed holds**.
@@ -70,6 +72,13 @@ Per-user, five steps:
    threshold **10.0 hPa**.
 5. **Summary** — save to profile with `lastCalibratedAt`; shows derived game
    range. Instructional copy must emphasize *comfortable* effort throughout.
+
+**Connection resilience:** the chosen device is pinned once the user leaves
+the intro step — the wizard must never fall back to a different device. If
+the pinned device disconnects, pause the current step behind a "device
+disconnected — waiting to reconnect" notice; accumulated step progress
+(confirmed peaks, completed holds) must survive the blip. The summary step
+works without a live connection, so a blip cannot block saving.
 
 ## 4. Detectors
 
@@ -90,6 +99,14 @@ Parameters: `minPeakAmplitude = 5.0` hPa, `dropThreshold = 0.5`,
   - After confirmation, require the smoothed signal to return **below
     `minPeakAmplitude`** before a new peak may start (prevents cascades of
     false peaks on a slow ramp-down).
+- **Stuck state**: if the smoothed signal stays at or above
+  `minPeakAmplitude` for **10 s** (200 samples at 20 Hz) without a peak
+  being confirmed — whether waiting for baseline return or in an endless
+  rise — the detector reports a stuck state. Surface it to the user
+  ("pressure has not returned to zero — check the device or recalibrate");
+  do **not** auto-re-zero the baseline, which would silently change what
+  measured values mean. The state clears when the smoothed signal drops
+  below `minPeakAmplitude`, when a peak is confirmed, or on reset.
 
 ### 4.2 SustainedPressureDetector (calibration holds)
 
@@ -123,10 +140,12 @@ Parameters: `activationThreshold`, `lowerBound`, `upperBound`,
 ### 5.1 Minimum Equalization Pressure
 
 Uses PeakDetector; every detected peak is confirmed/rejected by the user
-(peaks arriving while the confirmation dialog is open are discarded).
-Reports mean, stddev, success/fail counts; result can be saved to the
-profile's `minEqPressureHPa`. Rewards the **smallest consistent** pressure —
-there is deliberately no reward for higher peaks.
+(peaks arriving while the confirmation dialog is open are discarded, and the
+detector is reset when the dialog closes). When the detector reports its
+stuck state (§4.1), show the recalibration hint. Reports mean, stddev,
+success/fail counts; result can be saved to the profile's
+`minEqPressureHPa`. Rewards the **smallest consistent** pressure — there is
+deliberately no reward for higher peaks.
 
 ### 5.2 Constant Equalization
 

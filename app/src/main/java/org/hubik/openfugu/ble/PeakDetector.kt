@@ -9,10 +9,12 @@ class PeakDetector(
     private val minPeakAmplitude: Double = 5.0,
     private val dropThreshold: Double = 0.5,
     private val smoothingWindow: Int = 5,
-    private val sampleRateHz: Int = 20
+    private val sampleRateHz: Int = 20,
+    stuckAfterMs: Long = 10_000L
 ) {
     // Smoothing introduces a lag of half the window duration
     private val smoothingLagMs: Long = (smoothingWindow * 1000L) / (2 * sampleRateHz)
+    private val stuckAfterSamples: Int = (stuckAfterMs * sampleRateHz / 1000L).toInt()
     data class DetectedPeak(
         val peakValueHPa: Double,
         val timestamp: Long = System.currentTimeMillis()
@@ -25,6 +27,18 @@ class PeakDetector(
     private var currentPeak = 0.0
     private var currentPeakTimestamp = 0L
     private var needsBaselineReturn = false  // after confirming a peak, wait for signal to return to baseline
+    private var elevatedSampleCount = 0
+
+    /**
+     * True when the smoothed signal has stayed at or above minPeakAmplitude for
+     * stuckAfterMs without a peak being confirmed — the detector cannot make
+     * progress (typically ambient baseline drift or a blocked sensor). Surface
+     * this to the user; deliberately no auto-re-zero, which would silently
+     * change what measured values mean. Clears when the signal returns below
+     * minPeakAmplitude, a peak is confirmed, or on reset().
+     */
+    val isStuck: Boolean
+        get() = elevatedSampleCount >= stuckAfterSamples
 
     fun reset() {
         state = State.IDLE
@@ -32,6 +46,7 @@ class PeakDetector(
         currentPeak = 0.0
         currentPeakTimestamp = 0L
         needsBaselineReturn = false
+        elevatedSampleCount = 0
     }
 
     /**
@@ -44,6 +59,7 @@ class PeakDetector(
         if (recentSamples.size < smoothingWindow) return null
 
         val smoothed = recentSamples.average()
+        if (smoothed >= minPeakAmplitude) elevatedSampleCount++ else elevatedSampleCount = 0
 
         return when (state) {
             State.IDLE -> {
@@ -71,6 +87,7 @@ class PeakDetector(
                     currentPeak = 0.0
                     state = State.IDLE
                     needsBaselineReturn = true  // prevent cascading false peaks on ramp-down
+                    elevatedSampleCount = 0  // confirming a peak is progress, not a lockout
                     peak
                 } else {
                     null

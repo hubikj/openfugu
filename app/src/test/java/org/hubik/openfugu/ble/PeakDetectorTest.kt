@@ -1,13 +1,16 @@
 package org.hubik.openfugu.ble
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * Defaults: minPeakAmplitude 5.0, dropThreshold 0.5 (peak confirmed when the
- * smoothed signal falls below 50% of the peak), smoothing window 5 samples.
+ * smoothed signal falls below 50% of the peak), smoothing window 5 samples,
+ * stuck after 10 s (200 samples at 20 Hz) elevated without a confirmed peak.
  */
 class PeakDetectorTest {
 
@@ -90,6 +93,73 @@ class PeakDetectorTest {
         assertNull(d.addSample(0.0))
         val peaks = feed(d, 0.0, 0.0, 0.0, 0.0, 10.0, 10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0)
         assertEquals(1, peaks.size)
+    }
+
+    @Test
+    fun `stuck when the signal stays elevated without confirming a peak`() {
+        val d = PeakDetector()
+        // The smoothing window fills after 5 samples; from then on the smoothed
+        // signal sits at 8.0 (above the 5.0 minimum) in RISING and never drops
+        // enough to confirm. 10 s at 20 Hz = 200 elevated smoothed samples.
+        repeat(4 + 199) { d.addSample(8.0) }
+        assertFalse(d.isStuck)
+        d.addSample(8.0)
+        assertTrue(d.isStuck)
+    }
+
+    @Test
+    fun `stuck when the signal never returns to baseline after a peak`() {
+        val d = PeakDetector()
+        // Rise to 20, confirm the peak by dropping to a plateau at 8 — above
+        // the 5.0 baseline threshold, so the detector waits for a return that
+        // never comes.
+        val peaks = feed(
+            d,
+            0.0, 0.0, 0.0, 0.0, 0.0,
+            20.0, 20.0, 20.0, 20.0, 20.0,
+            8.0, 8.0, 8.0, 8.0, 8.0
+        )
+        assertEquals(1, peaks.size)
+        assertFalse(d.isStuck)
+
+        // Counting restarts after the confirmed peak; 200 more elevated samples
+        // without progress flip the stuck state.
+        repeat(199) { d.addSample(8.0) }
+        assertFalse(d.isStuck)
+        d.addSample(8.0)
+        assertTrue(d.isStuck)
+    }
+
+    @Test
+    fun `normal peak cycles never report stuck`() {
+        val d = PeakDetector()
+        feed(d, 0.0, 0.0, 0.0, 0.0, 0.0)
+        repeat(30) {
+            feed(d, 10.0, 10.0, 10.0, 10.0, 10.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            assertFalse(d.isStuck)
+        }
+    }
+
+    @Test
+    fun `returning to baseline clears the stuck state`() {
+        val d = PeakDetector()
+        repeat(4 + 200) { d.addSample(8.0) }
+        assertTrue(d.isStuck)
+        // The drift finally resolves: the drop confirms the pending 8.0 rise as
+        // a peak, the stuck state clears, and detection works again.
+        feed(d, 0.0, 0.0, 0.0, 0.0, 0.0)
+        assertFalse(d.isStuck)
+        val peaks = feed(d, 12.0, 12.0, 12.0, 12.0, 12.0, 0.0, 0.0, 0.0)
+        assertEquals(1, peaks.size)
+    }
+
+    @Test
+    fun `reset clears the stuck state`() {
+        val d = PeakDetector()
+        repeat(4 + 200) { d.addSample(8.0) }
+        assertTrue(d.isStuck)
+        d.reset()
+        assertFalse(d.isStuck)
     }
 
     @Test

@@ -366,6 +366,7 @@ private fun MinEqStep(
     var lastDetectedPeak by remember { mutableStateOf<Double?>(null) }
     var lastDetectedPeakTimestamp by remember { mutableLongStateOf(0L) }
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var detectorStuck by remember { mutableStateOf(false) }
 
     // Feed the detector from the flow directly — snapshot state (collectAsState)
     // is conflated per frame and would drop samples.
@@ -373,6 +374,7 @@ private fun MinEqStep(
         connection.latestPressure.collect { reading ->
             if (reading == null) return@collect
             val peak = detector.addSample(reading.relativeHPa)
+            detectorStuck = detector.isStuck
             if (peak != null && !showConfirmDialog) {
                 lastDetectedPeak = peak.peakValueHPa
                 lastDetectedPeakTimestamp = peak.timestamp
@@ -421,6 +423,15 @@ private fun MinEqStep(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        if (detectorStuck) {
+            Text(
+                "Pressure has not returned to zero — check the device or recalibrate.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         // Live chart with peak markers
         if (chartData.size >= 2) {

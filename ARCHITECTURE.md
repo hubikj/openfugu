@@ -63,10 +63,15 @@ PressureReading(pressureHPa, relativeHPa, timestamp)
   ↓ ring buffer (60 min) + StateFlows
 latestPressure (every sample)     chartData (immutable snapshots)
   ↓                                ↓
-Composables collect via           PressureChart renders the visible
-collectAsState()                  window (binary-searched slice)
+Display and games collect via     PressureChart renders the visible
+collectAsState() (conflated       window (binary-searched slice)
+per frame); sample-counting
+detectors (PeakDetector,
+SustainedPressureDetector)
+collect the flow directly in a
+LaunchedEffect so no samples drop
   ↓
-Games/exercises read latestPressure each frame;
+Games read latestPressure each frame;
 session traces come from historySnapshot() at save time
 ```
 
