@@ -54,15 +54,18 @@ fun MinEqExerciseScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showSaveDialog by remember { mutableStateOf(false) }
 
-    // Feed pressure to detector
-    LaunchedEffect(latestPressure) {
-        val reading = latestPressure ?: return@LaunchedEffect
-        val peak = detector.addSample(reading.relativeHPa)
-        if (peak != null && !showConfirmDialog) {
-            lastDetectedPeak = peak.peakValueHPa
-            lastDetectedPeakTimestamp = peak.timestamp
-            detectedPeaks = detectedPeaks + peak.peakValueHPa
-            showConfirmDialog = true
+    // Feed the detector from the flow directly — snapshot state (collectAsState)
+    // is conflated per frame and would drop samples.
+    LaunchedEffect(connection) {
+        connection.latestPressure.collect { reading ->
+            if (reading == null) return@collect
+            val peak = detector.addSample(reading.relativeHPa)
+            if (peak != null && !showConfirmDialog) {
+                lastDetectedPeak = peak.peakValueHPa
+                lastDetectedPeakTimestamp = peak.timestamp
+                detectedPeaks = detectedPeaks + peak.peakValueHPa
+                showConfirmDialog = true
+            }
         }
     }
 

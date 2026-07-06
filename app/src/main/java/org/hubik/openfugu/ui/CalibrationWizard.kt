@@ -339,15 +339,18 @@ private fun MinEqStep(
     var lastDetectedPeakTimestamp by remember { mutableLongStateOf(0L) }
     var showConfirmDialog by remember { mutableStateOf(false) }
 
-    // Feed pressure to detector
-    LaunchedEffect(latestPressure) {
-        val reading = latestPressure ?: return@LaunchedEffect
-        val peak = detector.addSample(reading.relativeHPa)
-        if (peak != null && !showConfirmDialog) {
-            lastDetectedPeak = peak.peakValueHPa
-            lastDetectedPeakTimestamp = peak.timestamp
-            detectedPeaks = detectedPeaks + peak.peakValueHPa
-            showConfirmDialog = true
+    // Feed the detector from the flow directly — snapshot state (collectAsState)
+    // is conflated per frame and would drop samples.
+    LaunchedEffect(connection) {
+        connection.latestPressure.collect { reading ->
+            if (reading == null) return@collect
+            val peak = detector.addSample(reading.relativeHPa)
+            if (peak != null && !showConfirmDialog) {
+                lastDetectedPeak = peak.peakValueHPa
+                lastDetectedPeakTimestamp = peak.timestamp
+                detectedPeaks = detectedPeaks + peak.peakValueHPa
+                showConfirmDialog = true
+            }
         }
     }
 
@@ -508,18 +511,21 @@ private fun MaxPressureStep(
     var holdProgressMs by remember { mutableLongStateOf(0L) }
     var currentBest by remember { mutableStateOf(0.0) }
 
-    // Feed pressure to detector
-    LaunchedEffect(latestPressure) {
-        val reading = latestPressure ?: return@LaunchedEffect
-        val now = System.currentTimeMillis()
-        val result = detector.addSample(reading.relativeHPa, now)
+    // Feed the detector from the flow directly — snapshot state (collectAsState)
+    // is conflated per frame and would drop samples.
+    LaunchedEffect(connection) {
+        connection.latestPressure.collect { reading ->
+            if (reading == null) return@collect
+            val now = System.currentTimeMillis()
+            val result = detector.addSample(reading.relativeHPa, now)
 
-        isHolding = detector.isTracking
-        holdProgressMs = detector.currentTrackingDurationMs(now)
-        currentBest = detector.currentBestSustained
+            isHolding = detector.isTracking
+            holdProgressMs = detector.currentTrackingDurationMs(now)
+            currentBest = detector.currentBestSustained
 
-        if (result != null && result.valueHPa > 0.0) {
-            completedHolds = completedHolds + result.valueHPa
+            if (result != null && result.valueHPa > 0.0) {
+                completedHolds = completedHolds + result.valueHPa
+            }
         }
     }
 
