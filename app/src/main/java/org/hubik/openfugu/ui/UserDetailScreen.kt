@@ -1,7 +1,9 @@
 package org.hubik.openfugu.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -11,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -27,6 +30,8 @@ fun UserDetailScreen(
     onDeleted: () -> Unit
 ) {
     val userProfiles by viewModel.userProfiles.collectAsState()
+    val savedDevices by viewModel.savedDevices.collectAsState()
+    val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
     val profile = userProfiles.find { it.id == userId }
 
     if (profile == null) {
@@ -84,6 +89,49 @@ fun UserDetailScreen(
                     }
                     TextButton(onClick = { showEditNameDialog = true }) {
                         Text("Edit")
+                    }
+                }
+            }
+
+            // Assigned devices
+            SectionHeader("Assigned Devices")
+
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    val pairedDevices = deviceUserPairings
+                        .filter { it.userId == profile.id }
+                        .mapNotNull { pairing -> savedDevices.find { it.address == pairing.deviceAddress } }
+                    if (pairedDevices.isEmpty()) {
+                        Text(
+                            "No device assigned. Assign this user to a device on the Devices tab.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        pairedDevices.forEachIndexed { index, device ->
+                            if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (device.colorArgb != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .background(Color(device.colorArgb.toInt()), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(device.displayName, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        device.address,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(onClick = { viewModel.unpairDevice(device.address) }) {
+                                    Text("Remove")
+                                }
+                            }
+                        }
                     }
                 }
             }
