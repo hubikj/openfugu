@@ -100,6 +100,42 @@ class SessionJsonTest {
     }
 
     @Test
+    fun `written values are rounded to 3 decimals`() {
+        val session = Session.MinEqSession(
+            id = "id-r", timestamp = 42L, durationMs = 1000L,
+            deviceName = "eFugu A", userName = null,
+            pressureTrace = listOf(
+                PressureReading(pressureHPa = 1013.25, relativeHPa = 12.340000000000003, timestamp = 1000L)
+            ),
+            peakMarkers = listOf(PeakMarker(1000L, 1.0 / 3.0, true)),
+            mean = 1.0 / 3.0, stddev = 2.0 / 3.0, successCount = 1, failCount = 0
+        )
+        val json = SessionJson.sessionToJson(session)
+        val reading = json.getJSONArray("pressureTrace").getJSONObject(0)
+        assertEquals(12.34, reading.getDouble("r"), 0.0)
+        assertEquals(1013.25, reading.getDouble("p"), 0.0)
+        assertEquals(0.333, json.getDouble("mean"), 0.0)
+        assertEquals(0.667, json.getDouble("stddev"), 0.0)
+        assertEquals(0.333, json.getJSONArray("peakMarkers").getJSONObject(0).getDouble("v"), 0.0)
+        // The serialized text itself must not carry float noise
+        assert("12.340000000000003" !in json.toString())
+    }
+
+    @Test
+    fun `percent in range is written without float-to-double noise`() {
+        val session = Session.ConstantEqSession(
+            id = "id-p", timestamp = 42L, durationMs = 1000L,
+            deviceName = "eFugu B", userName = null, pressureTrace = emptyList(),
+            lowerBound = 9.0, upperBound = 16.5, activationThreshold = 15.0,
+            scoringStartMs = 0L, percentInRange = 0.87f,
+            bestStreakMs = 0L, difficultyLabel = "Medium", durationSetting = "1 minute"
+        )
+        val json = SessionJson.sessionToJson(session)
+        // 0.87f.toDouble() is 0.8700000047683716; the file must say 0.87
+        assertEquals(0.87, json.getDouble("percentInRange"), 0.0)
+    }
+
+    @Test
     fun `unknown session type from a future version loads as null, not a crash`() {
         val json = JSONObject(
             """{"id":"x","type":"HOLODECK_GAME","timestamp":1,"durationMs":1,

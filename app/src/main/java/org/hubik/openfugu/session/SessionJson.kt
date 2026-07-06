@@ -12,6 +12,11 @@ import org.json.JSONObject
  */
 internal object SessionJson {
 
+    // Pressure-derived values are rounded to 3 decimals when written: 0.001 hPa
+    // = 0.1 Pa, ten times finer than the sensor's 1 Pa resolution, while keeping
+    // files free of floating-point noise ("12.340000000000003").
+    private fun round3(value: Double): Double = Math.round(value * 1000.0) / 1000.0
+
     fun sessionToJson(session: Session): JSONObject = JSONObject().apply {
         put("id", session.id)
         put("type", session.type.name)
@@ -26,30 +31,30 @@ internal object SessionJson {
                     session.peakMarkers.forEach { m ->
                         put(JSONObject().apply {
                             put("t", m.timestamp)
-                            put("v", m.valueHPa)
+                            put("v", round3(m.valueHPa))
                             put("s", m.successful)
                         })
                     }
                 })
-                put("mean", session.mean)
-                put("stddev", session.stddev ?: JSONObject.NULL)
+                put("mean", round3(session.mean))
+                put("stddev", session.stddev?.let { round3(it) } ?: JSONObject.NULL)
                 put("successCount", session.successCount)
                 put("failCount", session.failCount)
             }
             is Session.ConstantEqSession -> {
-                put("lowerBound", session.lowerBound)
-                put("upperBound", session.upperBound)
-                put("activationThreshold", session.activationThreshold)
+                put("lowerBound", round3(session.lowerBound))
+                put("upperBound", round3(session.upperBound))
+                put("activationThreshold", round3(session.activationThreshold))
                 put("scoringStartMs", session.scoringStartMs)
-                put("percentInRange", session.percentInRange.toDouble())
+                put("percentInRange", round3(session.percentInRange.toDouble()))
                 put("bestStreakMs", session.bestStreakMs)
                 put("difficultyLabel", session.difficultyLabel)
                 put("durationSetting", session.durationSetting)
             }
             is Session.GameSession -> {
                 put("score", session.score)
-                put("pressureRange", session.pressureRange)
-                put("negativeRange", session.negativeRange)
+                put("pressureRange", round3(session.pressureRange))
+                put("negativeRange", round3(session.negativeRange))
                 put("expertMode", session.expertMode)
             }
             is Session.MultiplayerGameSession -> {
@@ -61,8 +66,8 @@ internal object SessionJson {
                             put("colorArgb", p.colorArgb ?: JSONObject.NULL)
                             put("score", p.score)
                             put("rank", p.rank)
-                            put("pressureRange", p.pressureRange)
-                            put("negativeRange", p.negativeRange)
+                            put("pressureRange", round3(p.pressureRange))
+                            put("negativeRange", round3(p.negativeRange))
                             put("expertMode", p.expertMode)
                             put("pressureTrace", pressureTraceToJson(p.pressureTrace))
                         })
@@ -181,8 +186,8 @@ internal object SessionJson {
         JSONArray().apply {
             trace.forEach { r ->
                 put(JSONObject().apply {
-                    put("p", r.pressureHPa)
-                    put("r", r.relativeHPa)
+                    put("p", round3(r.pressureHPa))
+                    put("r", round3(r.relativeHPa))
                     put("t", r.timestamp)
                 })
             }

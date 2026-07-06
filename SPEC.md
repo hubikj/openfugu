@@ -257,7 +257,11 @@ ports must read/write the same schema. The authoritative schema is
 `SessionJson.kt`, locked by round-trip unit tests (`SessionJsonTest.kt`);
 key encodings: trace points as `{"p": absolute hPa, "r": relative hPa,
 "t": epoch ms}`; unknown session `type` values must load as "unknown"
-(skip), never crash — forward compatibility.
+(skip), never crash — forward compatibility. All pressure-derived values
+(trace points, peak markers, means, bounds, ranges, percentages) are
+rounded to **3 decimals** on write — 0.001 hPa is ten times finer than the
+sensor's 1 Pa resolution, and it keeps files free of floating-point noise.
+Readers must not assume more precision than that.
 
 ## 8. Safety invariants (every port MUST keep these)
 
