@@ -473,11 +473,14 @@ private fun MinEqStep(
             onConfirm = {
                 successfulPeaks = successfulPeaks + lastDetectedPeak!!
                 peakMarkers = peakMarkers + PeakMarker(lastDetectedPeakTimestamp, lastDetectedPeak!!, true)
+                // Drop anything half-risen while the dialog was open
+                detector.reset()
                 showConfirmDialog = false
             },
             onReject = {
                 failedCount++
                 peakMarkers = peakMarkers + PeakMarker(lastDetectedPeakTimestamp, lastDetectedPeak!!, false)
+                detector.reset()
                 showConfirmDialog = false
             }
         )
