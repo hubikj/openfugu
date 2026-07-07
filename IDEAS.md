@@ -100,6 +100,25 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 
 ---
 
+### Game Score Leaderboard
+**Goal:** Local leaderboards for game scores — see personal bests and compare between users on the same phone (family, training buddies, a class sharing an instructor's device).
+
+**UX concept:**
+- Per-game leaderboard: best scores for Fugu Reef, Fugu Feast, Fugu Cave (and future games), with user name and date
+- Personal bests per user, plus an all-users view for friendly competition on a shared phone
+- "New personal best!" / "New record!" celebration on the game over screen
+- Entry point from the Exercises tab (alongside session history) or per-game
+
+**Technical notes:**
+- Game sessions are already auto-saved with scores — the leaderboard can be derived from the session index rather than a new data store
+- Scores tie to the user via the device-user pairing at play time
+- Multiplayer games could later feed the same leaderboards (one entry per player)
+- Consider whether scores from different difficulty settings should rank separately
+
+**Safety note:** Fine as-is per the design principle — game scores already reward precision and survival, never raw pressure, so a leaderboard doesn't incentivize dangerous force.
+
+---
+
 ## Needs Multiple Devices
 
 ### Multiplayer Fugu Reef [x] (and we could also have multiplayer Fugu Cave in a similar fashion)
@@ -371,6 +390,33 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - Instructor at home monitors student practicing remotely
 - Friends compete in Fugu Reef from different locations
 - Group class where students use their own phones but share a room
+
+---
+
+## Maybe: iOS Version (Kotlin Multiplatform)
+
+Conclusion from a 2026-07-07 discussion — no commitment, recorded so the reasoning isn't lost. There is real demand: several iPhone-owning friends want the app.
+
+**Approach (if ever done):**
+- One repo, migrated in place — **no fork**. Restructure into `shared/` (core logic, games, Compose Multiplatform UI) plus thin `androidApp/` and `iosApp/` shells. Rename the repo (e.g. `openfugu`) when it happens; GitHub redirects old URLs.
+- The algorithmic core (PeakDetector, SustainedPressureDetector, RangeTracker, UserProfile, Session/SessionJson — ~700 lines) already has zero Android imports and ports as-is. SPEC.md is the platform-neutral reference.
+- The BLE layer is the real rewrite: Android `BluetoothGatt` → [Kable](https://github.com/JuulLabs/kable) (Kotlin Multiplatform BLE). iOS CoreBluetooth exposes per-device UUIDs instead of MAC addresses, so device identity / device-user pairing keys need rethinking.
+- UI: Compose Multiplatform runs the existing Compose UI on iOS (stable since 2025); the Canvas-based games and PressureChart translate directly.
+
+**Economics (free & open source, no Apple hardware owned):**
+- GitHub Actions macOS runners are free for public repos — CI can build the iOS target, run shared-core tests, and upload to TestFlight (fastlane + App Store Connect API key). No Mac required for the pipeline.
+- The iOS simulator has no Bluetooth — BLE testing happens on testers' iPhones via TestFlight. Build in diagnostics (on-screen log, log export via share sheet) from day one so testers can report usefully.
+- Distribution needs someone's Apple Developer account ($99/year) — mine or a contributor's. TestFlight external link for friends; builds expire after 90 days.
+
+**What keeps the option cheap meanwhile:** SPEC.md stays platform-neutral, the core stays free of Android imports, protocol knowledge lives in PROTOCOL.md.
+
+---
+
+## Rejected: PWA / Browser Version
+
+Considered and rejected 2026-07-07. A browser app would need Web Bluetooth to talk to the device, and Web Bluetooth only exists in Chromium browsers (Chrome/Edge on desktop and Android). It is unavailable on iOS entirely — every iOS browser is WebKit underneath and Apple does not ship it — so a PWA fails the "runs on any device" goal and specifically excludes the iPhone users who motivate cross-platform work in the first place.
+
+If desktop support is ever wanted, it falls out of the Kotlin Multiplatform restructuring above (Compose Multiplatform also targets desktop) rather than a web app; desktop BLE would need its own library choice, but the shared core and SPEC.md keep that door open.
 
 ---
 
