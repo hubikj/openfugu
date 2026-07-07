@@ -61,7 +61,7 @@ fun PressureChart(
     val defaultLineColor = lines.firstOrNull()?.color ?: themeDefault
     val zeroLineColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
     val gridColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
-    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val pausedColor = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
     val density = LocalDensity.current
 
@@ -139,7 +139,7 @@ fun PressureChart(
             ) {
                 val w = size.width
                 val h = size.height
-                val labelTextSize = with(density) { 10.sp.toPx() }
+                val labelTextSize = with(density) { 12.sp.toPx() }
 
                 val textPaint = android.graphics.Paint().apply {
                     color = labelColor.toArgb()

@@ -1024,10 +1024,13 @@ fun PressureDisplay(
     isCalibrated: Boolean,
     onRecalibrate: () -> Unit
 ) {
+    // surfaceVariant, not primaryContainer: with some dynamic color schemes the
+    // dark-mode primaryContainer is light enough to wash out the primary-colored
+    // pressure value (same issue as the pattern picker in FuguFlowGame).
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Column(
@@ -1056,14 +1059,14 @@ fun PressureDisplay(
                                 "min ${formatHPa(chartMin)}  max ${formatHPa(chartMax)}",
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                             )
                         }
                         Text(
                             "abs ${formatHPa(reading.pressureHPa)} hPa",
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.4f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                     }
                     OutlinedButton(
@@ -1075,9 +1078,9 @@ fun PressureDisplay(
                     }
                 }
             } else if (!isCalibrated) {
-                Text("Calibrating...", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
+                Text("Calibrating...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
             } else {
-                Text("Waiting for data...", color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f))
+                Text("Waiting for data...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
             }
         }
     }
