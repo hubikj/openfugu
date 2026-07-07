@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- API 31+. Same policy as backup_rules.xml: keep profiles/calibration,
-     exclude bulky session traces from cloud backup; allow everything on
-     direct device-to-device transfer (no size quota there). -->
+     leave bulky session traces out of cloud backup (the include switches to
+     opt-in mode, so the file domain is excluded); allow everything on direct
+     device-to-device transfer (no size quota there). -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="sharedpref" path="."/>
-        <exclude domain="file" path="sessions"/>
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="."/>

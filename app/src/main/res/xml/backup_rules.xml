@@ -2,8 +2,8 @@
 <!-- Applies below API 31. Session trace files are large (up to 50 x multi-MB)
      and can exceed the Auto Backup quota, silently failing the whole backup —
      including the SharedPreferences that hold profiles and calibration.
-     Back up prefs, exclude the bulky session traces. -->
+     Listing an include switches backup to opt-in mode: only prefs are backed
+     up, so the bulky session traces in the file domain are excluded. -->
 <full-backup-content>
     <include domain="sharedpref" path="."/>
-    <exclude domain="file" path="sessions"/>
 </full-backup-content>
