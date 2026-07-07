@@ -1,6 +1,6 @@
 # OpenFugu Privacy Policy
 
-**Last updated: 3 July 2026**
+**Last updated: 7 July 2026**
 
 OpenFugu does not collect, transmit, or share any personal data. The app does not
 request internet access at all, so it is technically incapable of sending anything
@@ -39,6 +39,5 @@ advertising, and no tracking of any kind.
 
 ## Contact
 
-OpenFugu is an open-source project. Questions and concerns:
-<https://github.com/hubikj/openfugu-android> (issues) or the contact listed on the
-project page. Changes to this policy are published in this repository.
+OpenFugu is an open-source project. Questions and concerns: <openfugu@hubik.org>.
+Changes to this policy are published at <https://openfugu.hubik.org/privacy>.
