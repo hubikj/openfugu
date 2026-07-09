@@ -204,8 +204,8 @@ fun CalibrationWizard(
                     connection = selectedConnection,
                     results = maxPositiveProgress,
                     lineColor = deviceLineColor,
-                    title = "Maximum Positive Pressure",
-                    description = "Apply comfortable maximum positive pressure (Valsalva/Frenzel) and hold for 3 seconds.\n\nDon't push to your absolute max — choose a level you could sustain comfortably.",
+                    title = "Step 2: Maximum Positive Pressure",
+                    description = "Apply comfortable maximum positive pressure (Valsalva/Frenzel) and hold for 3 seconds.\n\nDon't push to your absolute maximum — choose a level you could sustain comfortably.",
                     threshold = 30.0,
                     direction = PressureDirection.POSITIVE,
                     modifier = Modifier.padding(padding),
@@ -222,7 +222,7 @@ fun CalibrationWizard(
                     connection = selectedConnection,
                     results = maxNegativeProgress,
                     lineColor = deviceLineColor,
-                    title = "Maximum Negative Pressure (Optional)",
+                    title = "Step 3: Maximum Negative Pressure (Optional)",
                     description = "Apply comfortable negative pressure (reverse pack) and hold for 3 seconds.\n\nSkip if you don't know reverse pack technique.",
                     threshold = 10.0,
                     direction = PressureDirection.NEGATIVE,
@@ -469,7 +469,7 @@ private fun MinEqStep(
                     StatRow("Mean", "${"%.1f".format(mean)} hPa")
                 }
                 if (stddev != null) {
-                    StatRow("Std Dev", "${"%.1f".format(stddev)} hPa")
+                    StatRow("Standard deviation", "${"%.1f".format(stddev)} hPa")
                 }
                 if (successfulPeaks.isNotEmpty()) {
                     val rate = successfulPeaks.size.toFloat() / (successfulPeaks.size + results.failedCount)
