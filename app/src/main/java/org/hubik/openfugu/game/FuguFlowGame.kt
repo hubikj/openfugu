@@ -230,6 +230,21 @@ private fun buildRandomMix(targetDurationSec: Float = 45f): FlowPattern {
     )
 }
 
+/**
+ * Shifts all keyframes vertically so the midpoint between the pattern's
+ * lowest and highest values sits at 0.5 — zero pressure in the expert-mode
+ * mapping. Patterns are authored against the normal-mode mapping (fraction
+ * 0 = zero pressure); used unshifted in expert mode they would sit entirely
+ * in the negative-pressure half of the screen.
+ */
+internal fun FlowPattern.centeredOnZeroPressure(): FlowPattern {
+    if (keyframes.isEmpty()) return this
+    val minFraction = keyframes.minOf { it.targetFraction }
+    val maxFraction = keyframes.maxOf { it.targetFraction }
+    val offset = 0.5f - (minFraction + maxFraction) / 2f
+    return copy(keyframes = keyframes.map { it.copy(targetFraction = it.targetFraction + offset) })
+}
+
 private fun FlowPattern.targetAt(timeSec: Float): Float {
     if (keyframes.isEmpty()) return 0f
     if (timeSec <= keyframes.first().timeSec) return keyframes.first().targetFraction
@@ -368,10 +383,15 @@ fun FuguFlowScreen(
     }
 
     fun resetGame() {
-        val pattern = if (selectedPatternIndex < fixedPatterns.size) {
+        val basePattern = if (selectedPatternIndex < fixedPatterns.size) {
             fixedPatterns[selectedPatternIndex]
         } else {
             buildRandomMix()
+        }
+        val pattern = if (expertMode && negativeRange > 0.0) {
+            basePattern.centeredOnZeroPressure()
+        } else {
+            basePattern
         }
         activePattern = pattern
         elapsedSec = -GRACE_PERIOD_SEC

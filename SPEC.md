@@ -237,7 +237,11 @@ accumulates fractionally (`pps × combo × dt`) and is displayed truncated —
 per-frame integer truncation must be avoided (frame-rate dependence).
 Patterns are keyframe lists `(timeSec, targetFraction of pressureRange)`;
 built-ins: Gentle Wave, Pulse Train, Staircase, Mountain, Choppy Seas, and
-a Random Mix assembled from segments.
+a Random Mix assembled from segments. Patterns are authored against the
+normal-mode mapping (fraction 0 = zero pressure); in expert mode (§6.1)
+the active pattern is shifted vertically at game start so the midpoint
+between its lowest and highest keyframe sits at 0.5 (zero pressure) —
+unshifted it would sit entirely in the negative-pressure half.
 
 ## 7. Sessions
 
