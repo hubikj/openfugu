@@ -119,6 +119,26 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 
 ---
 
+### Mock Device (simulated pressure source)
+**Goal:** A fake device that produces pressure data without any eFugu hardware, selectable wherever a real device would be.
+
+**Why:**
+- Development without hardware at hand — the Android emulator has no Bluetooth (and neither does the iOS simulator, if the iOS port ever happens), so today nothing past the Devices tab can be exercised without a physical eFugu
+- App Store review (should the iOS port reach that stage) — reviewers have no eFugu, a mock device lets them see the app working
+- Try-before-buy: people without a device can play the games and get a feel for the app
+- Reproducible screenshots and demos
+
+**UX concept:**
+- Mock device appears as a connectable entry (e.g. behind a developer toggle or long-press)
+- Pressure controlled with an overlay slider while a game/exercise runs — drag to "equalize"
+- Possibly scripted patterns too (replay a bundled session, sine wave) for hands-free demos
+
+**Technical notes:**
+- Extract an interface from `DeviceConnection` (pressure StateFlow, connection state) so exercises/games don't care whether the source is BLE or mock
+- The mock pairs with a user like any device, so calibration-dependent features work
+
+---
+
 ## Needs Multiple Devices
 
 ### Multiplayer Fugu Reef [x] (and we could also have multiplayer Fugu Cave in a similar fashion)
@@ -403,9 +423,10 @@ Conclusion from a 2026-07-07 discussion — no commitment, recorded so the reaso
 - The BLE layer is the real rewrite: Android `BluetoothGatt` → [Kable](https://github.com/JuulLabs/kable) (Kotlin Multiplatform BLE). iOS CoreBluetooth exposes per-device UUIDs instead of MAC addresses, so device identity / device-user pairing keys need rethinking.
 - UI: Compose Multiplatform runs the existing Compose UI on iOS (stable since 2025); the Canvas-based games and PressureChart translate directly.
 
-**Economics (free & open source, no Apple hardware owned):**
+**Economics (free & open source, no Mac owned; an iPhone 15 is available since 2026-07):**
 - GitHub Actions macOS runners are free for public repos — CI can build the iOS target, run shared-core tests, and upload to TestFlight (fastlane + App Store Connect API key). No Mac required for the pipeline.
-- The iOS simulator has no Bluetooth — BLE testing happens on testers' iPhones via TestFlight. Build in diagnostics (on-screen log, log export via share sheet) from day one so testers can report usefully.
+- BLE testing on the own iPhone 15 with the eFugu in hand. Installs without a Mac (the Windows PC is the phone's USB host; no Linux desktop needed): Sideloadly or AltServer on Windows install the CI-built `.ipa` with a free Apple ID (7-day auto-refresh), or TestFlight over the air once the developer account exists. Live device logs via libimobiledevice Windows builds (`idevicesyslog`); the in-app log-export screen is the primary diagnostic regardless of host. Note: Kotlin Apple targets compile only on macOS — iOS-specific compile errors surface in CI, not on the dev VM.
+- Still build in diagnostics (on-screen log, log export via share sheet) from day one so remote testers can report usefully.
 - Distribution needs someone's Apple Developer account ($99/year) — mine or a contributor's. TestFlight external link for friends; builds expire after 90 days.
 
 **What keeps the option cheap meanwhile:** SPEC.md stays platform-neutral, the core stays free of Android imports, protocol knowledge lives in PROTOCOL.md.
@@ -424,5 +445,5 @@ If desktop support is ever wanted, it falls out of the Kotlin Multiplatform rest
 - [ ] Figure out what the `dcdf` BLE characteristic does (exercise start/stop? device config? LED control?) — needs another HCI snoop while using the official app's exercise modes
 
 ## Low Priority
-- [ ] Simulated dive mode — the official app already has this, our focus is on games and instructor features
+- [ ] Simulated dive mode — dry-run dive training: simulates the length of a breath hold and the frequency of equalizations. The user declares the depth at their first equalization; the app then predicts the following equalization points (same relative pressure-change intervals) down to the target depth and prompts the user to equalize at each one. The official app already has this; our focus is on games and instructor features. (Not to be confused with the Mock Device idea — this uses a real device.)
 - [ ] Landscape orientation support
