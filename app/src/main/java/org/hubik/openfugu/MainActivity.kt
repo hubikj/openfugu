@@ -1499,7 +1499,11 @@ fun DevicePickerDialog(
                                         selectedAddresses - device.address
                                 }
                             )
-                        } else {
+                        } else if (selectedAddress != null) {
+                            // Radio buttons only when there is a current
+                            // selection to display; launch-and-go pickers
+                            // (no selectedAddress) are a plain tap-to-choose
+                            // list — a radio there would never show as checked
                             RadioButton(
                                 selected = isSelected,
                                 enabled = enabled,

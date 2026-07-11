@@ -418,7 +418,7 @@ fun ExercisesTab(
             },
             disabledReason = { device ->
                 if (entry.requiresMinEqCalibration && userFor(device.address)?.minEqPressureHPa == null)
-                    "Requires minimum equalization calibration"
+                    "Requires calibration"
                 else null
             },
             onPairUser = onPairUser,
