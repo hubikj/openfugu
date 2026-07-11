@@ -15,7 +15,7 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - [x] Fugu fish app icon
 - [x] Unexpected disconnect handling
 - [x] Unified device cards across Live and Devices tabs
-- [x] Game code refactored — shared GameUtils.kt (GameState, pressure mapping, drawing helpers)
+- [x] Game code refactored — shared GameUtils.kt (GameState, pressure mapping, frame loop, colors, drawing helpers) + MultiplayerGameUtils.kt (shared multiplayer plumbing); per-game tuning constants defined once in the single-player file
 - [x] Expert pressure mode (bidirectional, asymmetric scaling, per-user toggle)
 - [x] Calibration wizard (min equalization, max positive, max negative, per-user)
 - [x] User profiles with calibration data, device-user pairing

@@ -37,8 +37,11 @@ they live in `app/src/test/`). Use `compileDebugKotlin` (fast) not
 ### Reuse before creating
 Before creating a new composable, color constant, or utility, check if a shared one already exists in:
 - `ui/SharedComponents.kt` — shared colors (`AppColors`), label-value rows, dialogs
-- `game/GameUtils.kt` — shared game state, pressure-to-Y mapping, drawing helpers
+- `game/GameUtils.kt` — shared game state, pressure-to-Y mapping, frame loop (`runFrameLoop`), game colors, drawing helpers
+- `game/MultiplayerGameUtils.kt` — everything multiplayer games share: player info/state, readiness check, per-player fish update, session save, waiting row, scoreboard, game-over overlay
 - `PressureChart.kt` — unified chart with optional overlays (don't create separate chart composables)
+
+Per-game tuning constants live once, public in the single-player file (`REEF_*`, `FEAST_*`, `CAVE_*`); multiplayer variants reuse them — never redefine a tuning constant in a second file.
 
 ### User-facing text
 Spell out words: "equalization" not "EQ", "minimum" not "min", "maximum" not "max". Abbreviations are fine in code identifiers. Use "target range" not "target band".

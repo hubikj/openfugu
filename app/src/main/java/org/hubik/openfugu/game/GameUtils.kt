@@ -1,5 +1,6 @@
 package org.hubik.openfugu.game
 
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -18,12 +19,24 @@ sealed class GameState {
 }
 
 // =============================================================================
+// Shared tuning
+// =============================================================================
+
+/** Default full-range pressure when no user profile is paired, in hPa. */
+const val DEFAULT_PRESSURE_RANGE = 40.0
+
+/** Exponential smoothing rate for pressure-to-position mapping (all games). */
+const val SMOOTHING_FACTOR = 10f
+
+// =============================================================================
 // Shared colors
 // =============================================================================
 
 val GameScoreColor = Color(0xCCFFFFFF)
 val GamePressureColor = Color(0x99FFFFFF)
 val GameOverlayBg = Color(0x88000000)
+val GameBgColor = Color(0xFF0D1B2A)      // underwater background (Reef, Feast, Cave)
+val GameSeabedColor = Color(0xFF1A2D40)
 
 private val FishColor = Color(0xFFFFB347)
 private val FishEyeWhite = Color(0xFFFFFFFF)
@@ -52,6 +65,24 @@ fun calculateTargetY(
         }
     } else {
         1f - (currentPressure / pressureRange).toFloat().coerceIn(0f, 1f)
+    }
+}
+
+/**
+ * Frame clock for game loops: invokes [onFrame] once per animation frame with
+ * the elapsed seconds since the previous frame (0 on the first frame, clamped
+ * to 0.05 s so a paused app doesn't teleport the game) while [isRunning]
+ * holds. Call from a LaunchedEffect keyed on the game state.
+ */
+suspend fun runFrameLoop(isRunning: () -> Boolean, onFrame: (clampedDt: Float) -> Unit) {
+    var lastNanos = 0L
+    while (isRunning()) {
+        withInfiniteAnimationFrameNanos { nanos ->
+            val dt = if (lastNanos == 0L) 0f
+            else (nanos - lastNanos) / 1_000_000_000f
+            lastNanos = nanos
+            onFrame(dt.coerceAtMost(0.05f))
+        }
     }
 }
 

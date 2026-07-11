@@ -42,7 +42,8 @@ app/src/main/java/org/hubik/openfugu/
 │   └── RangeTracker.kt      — In-range tracking with activation + grace period
 │
 └── game/                    — Pressure-controlled games
-    ├── GameUtils.kt         — Shared: GameState, calculateTargetY, drawing helpers
+    ├── GameUtils.kt         — Shared: GameState, calculateTargetY, runFrameLoop, colors, drawing helpers
+    ├── MultiplayerGameUtils.kt — Shared multiplayer plumbing: player info/state, ready check, session save, scoreboards, game-over overlay
     ├── FuguReefGame.kt      — Obstacle course (dodge gaps)
     ├── FuguFeastGame.kt     — Eat smaller fish, avoid bigger ones
     ├── FuguCaveGame.kt      — Navigate through narrowing cave passages

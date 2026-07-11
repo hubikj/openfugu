@@ -1,6 +1,5 @@
 package org.hubik.openfugu.game
 
-import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -31,9 +30,6 @@ import kotlin.math.sqrt
 // =============================================================================
 // Game constants
 // =============================================================================
-
-private const val PRESSURE_RANGE = 40.0
-private const val SMOOTHING_FACTOR = 10f
 
 // Scoring — 2D distance to nearest point on target curve within a time window
 private const val SCORING_WINDOW_SEC = 1.5f  // ±1.5s — covers max reachable time offset for OK zone
@@ -344,7 +340,7 @@ private fun pointToSegmentDistance(
 fun FuguFlowScreen(
     connection: DeviceConnection,
     onBack: () -> Unit,
-    pressureRange: Double = PRESSURE_RANGE,
+    pressureRange: Double = DEFAULT_PRESSURE_RANGE,
     negativeRange: Double = 0.0,
     expertMode: Boolean = false,
     deviceName: String = connection.displayName,
@@ -428,67 +424,58 @@ fun FuguFlowScreen(
     }
 
     LaunchedEffect(gameState) {
-        if (gameState !is GameState.Playing) return@LaunchedEffect
         val pattern = activePattern ?: return@LaunchedEffect
 
-        var lastNanos = 0L
-        while (gameState is GameState.Playing) {
-            withInfiniteAnimationFrameNanos { nanos ->
-                val dt = if (lastNanos == 0L) 0f
-                else (nanos - lastNanos) / 1_000_000_000f
-                lastNanos = nanos
-                val clampedDt = dt.coerceAtMost(0.05f)
+        runFrameLoop({ gameState is GameState.Playing }) { clampedDt ->
+            elapsedSec += clampedDt
 
-                elapsedSec += clampedDt
-
-                if (elapsedSec >= pattern.durationSec) {
-                    gameState = GameState.GameOver(score.toInt())
-                    return@withInfiniteAnimationFrameNanos
-                }
-
-                val currentPressure = pressure?.relativeHPa ?: 0.0
-                val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
-                playerY += (targetY - playerY) * SMOOTHING_FACTOR * clampedDt
-                playerY = playerY.coerceIn(0f, 1f)
-
-                if (elapsedSec >= 0f) {
-                    playerTrail = (playerTrail + (elapsedSec to playerY))
-                        .filter { it.first > elapsedSec - LOOKBEHIND_SEC - 1f }
-                }
-
-                // Only score after grace period
-                if (elapsedSec < 0f) return@withInfiniteAnimationFrameNanos
-
-                val dist = pattern.minDistance2D(elapsedSec, playerY, timeWeight)
-
-                val zone: String
-                val pps: Int
-                when {
-                    dist <= PERFECT_ZONE -> { zone = "Perfect"; pps = PERFECT_PPS }
-                    dist <= GOOD_ZONE -> { zone = "Good"; pps = GOOD_PPS }
-                    dist <= OK_ZONE -> { zone = "OK"; pps = OK_PPS }
-                    else -> { zone = "Miss"; pps = 0 }
-                }
-                currentZone = zone
-
-                when (zone) {
-                    "Perfect" -> perfectTime += clampedDt
-                    "Good" -> goodTime += clampedDt
-                    "OK" -> okTime += clampedDt
-                    "Miss" -> missTime += clampedDt
-                }
-
-                if (zone == "Perfect" || zone == "Good") {
-                    comboTime += clampedDt
-                    comboMultiplier = (1 + (comboTime / COMBO_THRESHOLD_SEC).toInt())
-                        .coerceAtMost(MAX_COMBO_MULTIPLIER)
-                } else {
-                    comboTime = 0f
-                    comboMultiplier = 1
-                }
-
-                score += pps * comboMultiplier * clampedDt
+            if (elapsedSec >= pattern.durationSec) {
+                gameState = GameState.GameOver(score.toInt())
+                return@runFrameLoop
             }
+
+            val currentPressure = pressure?.relativeHPa ?: 0.0
+            val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
+            playerY += (targetY - playerY) * SMOOTHING_FACTOR * clampedDt
+            playerY = playerY.coerceIn(0f, 1f)
+
+            if (elapsedSec >= 0f) {
+                playerTrail = (playerTrail + (elapsedSec to playerY))
+                    .filter { it.first > elapsedSec - LOOKBEHIND_SEC - 1f }
+            }
+
+            // Only score after grace period
+            if (elapsedSec < 0f) return@runFrameLoop
+
+            val dist = pattern.minDistance2D(elapsedSec, playerY, timeWeight)
+
+            val zone: String
+            val pps: Int
+            when {
+                dist <= PERFECT_ZONE -> { zone = "Perfect"; pps = PERFECT_PPS }
+                dist <= GOOD_ZONE -> { zone = "Good"; pps = GOOD_PPS }
+                dist <= OK_ZONE -> { zone = "OK"; pps = OK_PPS }
+                else -> { zone = "Miss"; pps = 0 }
+            }
+            currentZone = zone
+
+            when (zone) {
+                "Perfect" -> perfectTime += clampedDt
+                "Good" -> goodTime += clampedDt
+                "OK" -> okTime += clampedDt
+                "Miss" -> missTime += clampedDt
+            }
+
+            if (zone == "Perfect" || zone == "Good") {
+                comboTime += clampedDt
+                comboMultiplier = (1 + (comboTime / COMBO_THRESHOLD_SEC).toInt())
+                    .coerceAtMost(MAX_COMBO_MULTIPLIER)
+            } else {
+                comboTime = 0f
+                comboMultiplier = 1
+            }
+
+            score += pps * comboMultiplier * clampedDt
         }
     }
 

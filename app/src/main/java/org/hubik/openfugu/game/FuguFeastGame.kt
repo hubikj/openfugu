@@ -1,6 +1,5 @@
 package org.hubik.openfugu.game
 
-import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,27 +27,24 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 // =============================================================================
-// Game constants — all spatial values in dp
+// Game constants — all spatial values in dp.
+// Shared with Multiplayer Fugu Feast, hence not private.
 // =============================================================================
 
-private const val BASE_SPEED_DP = 140f          // dp/s — starting scroll speed
-private const val SPEED_INCREMENT = 0.003f       // speed multiplier increase per fish eaten
-private const val PRESSURE_RANGE = 40.0          // hPa for full vertical range
-private const val SMOOTHING_FACTOR = 10f         // exponential smoothing rate
-private const val PLAYER_START_RADIUS_DP = 18f   // starting player radius in dp
-private const val GROWTH_PER_EAT = 1.5f          // dp added to radius per fish eaten
-private const val MAX_PLAYER_RADIUS_DP = 50f     // cap on player size
-private const val ENEMY_MIN_RADIUS_DP = 8f
-private const val ENEMY_MAX_RADIUS_DP = 70f
-private const val ENEMY_SPAWN_INTERVAL = 0.6f    // seconds between spawns (starting)
-private const val ROCK_SPAWN_INTERVAL = 3.0f     // seconds between rock spawns
-private const val ROCK_WIDTH_DP = 160f
-private const val ROCK_MIN_HEIGHT_DP = 60f
-private const val ROCK_MAX_HEIGHT_DP = 140f
+const val FEAST_BASE_SPEED_DP = 140f           // dp/s — starting scroll speed
+const val FEAST_SPEED_INCREMENT = 0.003f       // speed multiplier increase per fish eaten
+const val FEAST_PLAYER_START_RADIUS_DP = 18f   // starting player radius in dp
+const val FEAST_GROWTH_PER_EAT = 1.5f          // dp added to radius per fish eaten
+const val FEAST_MAX_PLAYER_RADIUS_DP = 50f     // cap on player size
+const val FEAST_ENEMY_MIN_RADIUS_DP = 8f
+const val FEAST_ENEMY_MAX_RADIUS_DP = 70f
+const val FEAST_ENEMY_SPAWN_INTERVAL = 0.6f    // seconds between spawns (starting)
+const val FEAST_ROCK_SPAWN_INTERVAL = 3.0f     // seconds between rock spawns
+const val FEAST_ROCK_WIDTH_DP = 160f
+const val FEAST_ROCK_MIN_HEIGHT_DP = 60f
+const val FEAST_ROCK_MAX_HEIGHT_DP = 140f
 
 // Colors
-private val BgColor = Color(0xFF0D1B2A)
-private val SeabedColor = Color(0xFF1A2D40)
 private val RockColor = Color(0xFF4A3728)
 private val RockEdge = Color(0xFF5E4A3A)
 
@@ -72,7 +68,8 @@ private data class EnemyFish(
     var eaten: Boolean = false
 )
 
-private data class Rock(
+/** Shared with Multiplayer Fugu Feast (identical rock behavior in both). */
+data class FeastRock(
     var x: Float,           // dp from left edge
     val height: Float,      // dp
     val width: Float        // dp
@@ -87,7 +84,7 @@ private data class Rock(
 fun FuguFeastScreen(
     connection: DeviceConnection,
     onBack: () -> Unit,
-    pressureRange: Double = PRESSURE_RANGE,
+    pressureRange: Double = DEFAULT_PRESSURE_RANGE,
     negativeRange: Double = 0.0,
     expertMode: Boolean = false,
     deviceName: String = connection.displayName,
@@ -102,10 +99,10 @@ fun FuguFeastScreen(
     var gameState by remember { mutableStateOf<GameState>(GameState.WaitingToStart) }
     var gameStartMs by remember { mutableLongStateOf(0L) }
     var fishY by remember { mutableFloatStateOf(0.5f) }
-    var playerRadius by remember { mutableFloatStateOf(PLAYER_START_RADIUS_DP) }
+    var playerRadius by remember { mutableFloatStateOf(FEAST_PLAYER_START_RADIUS_DP) }
     var scrollOffset by remember { mutableFloatStateOf(0f) }
     var enemies by remember { mutableStateOf(listOf<EnemyFish>()) }
-    var rocks by remember { mutableStateOf(listOf<Rock>()) }
+    var rocks by remember { mutableStateOf(listOf<FeastRock>()) }
     var score by remember { mutableIntStateOf(0) }
     var highScore by remember { mutableIntStateOf(0) }
     var enemySpawnTimer by remember { mutableFloatStateOf(0f) }
@@ -117,7 +114,7 @@ fun FuguFeastScreen(
 
     fun resetGame() {
         fishY = 0.5f
-        playerRadius = PLAYER_START_RADIUS_DP
+        playerRadius = FEAST_PLAYER_START_RADIUS_DP
         scrollOffset = 0f
         enemies = emptyList()
         rocks = emptyList()
@@ -149,123 +146,113 @@ fun FuguFeastScreen(
 
     // Game loop
     LaunchedEffect(gameState) {
-        if (gameState !is GameState.Playing) return@LaunchedEffect
+        runFrameLoop({ gameState is GameState.Playing }) { clampedDt ->
+            val speedMultiplier = 1f + score * FEAST_SPEED_INCREMENT
+            val baseSpeed = FEAST_BASE_SPEED_DP * speedMultiplier
 
-        var lastNanos = 0L
-        while (gameState is GameState.Playing) {
-            withInfiniteAnimationFrameNanos { nanos ->
-                val dt = if (lastNanos == 0L) 0f
-                else (nanos - lastNanos) / 1_000_000_000f
-                lastNanos = nanos
-                val clampedDt = dt.coerceAtMost(0.05f)
+            // --- Fish position from pressure ---
+            val currentPressure = pressure?.relativeHPa ?: 0.0
+            val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
+            fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
+            fishY = fishY.coerceIn(fishMinY, fishMaxY)
 
-                val speedMultiplier = 1f + score * SPEED_INCREMENT
-                val baseSpeed = BASE_SPEED_DP * speedMultiplier
+            // --- Scroll ---
+            scrollOffset += baseSpeed * clampedDt
 
-                // --- Fish position from pressure ---
-                val currentPressure = pressure?.relativeHPa ?: 0.0
-                val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
-                fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
-                fishY = fishY.coerceIn(fishMinY, fishMaxY)
+            // --- Update enemies ---
+            val updatedEnemies = enemies.toMutableList()
+            updatedEnemies.forEach { it.x -= it.speed * speedMultiplier * clampedDt }
+            updatedEnemies.removeAll { it.x < -it.radius * 3 || it.eaten }
 
-                // --- Scroll ---
-                scrollOffset += baseSpeed * clampedDt
+            // --- Spawn enemies ---
+            val (screenWDp, screenHDp) = canvasSizeDp
+            enemySpawnTimer += clampedDt
+            val spawnInterval = FEAST_ENEMY_SPAWN_INTERVAL / speedMultiplier.coerceAtLeast(0.5f)
+            if (enemySpawnTimer >= spawnInterval) {
+                enemySpawnTimer = 0f
 
-                // --- Update enemies ---
-                val updatedEnemies = enemies.toMutableList()
-                updatedEnemies.forEach { it.x -= it.speed * speedMultiplier * clampedDt }
-                updatedEnemies.removeAll { it.x < -it.radius * 3 || it.eaten }
+                // Size distribution: bigger fish always possible, more frequent with score
+                val sizeRoll = Math.random().toFloat()
+                val bigChance = (0.3f + score * 0.005f).coerceAtMost(0.6f)
+                val maxEnemy = FEAST_ENEMY_MAX_RADIUS_DP  // capped but always > max player
+                val enemyRadius = if (sizeRoll < bigChance) {
+                    // Bigger than player
+                    playerRadius * (1.1f + Math.random().toFloat() * 0.7f)
+                } else {
+                    // Smaller than player (safe to eat)
+                    FEAST_ENEMY_MIN_RADIUS_DP + Math.random().toFloat() *
+                            (playerRadius - FEAST_ENEMY_MIN_RADIUS_DP).coerceAtLeast(3f)
+                }.coerceIn(FEAST_ENEMY_MIN_RADIUS_DP, maxEnemy)
 
-                // --- Spawn enemies ---
-                val (screenWDp, screenHDp) = canvasSizeDp
-                enemySpawnTimer += clampedDt
-                val spawnInterval = ENEMY_SPAWN_INTERVAL / speedMultiplier.coerceAtLeast(0.5f)
-                if (enemySpawnTimer >= spawnInterval) {
-                    enemySpawnTimer = 0f
+                val y = 0.08f + Math.random().toFloat() * 0.76f  // avoid seabed
+                // Speed must be >= scroll speed so fish never go backwards
+                val speed = baseSpeed * (1.0f + Math.random().toFloat() * 0.6f)
 
-                    // Size distribution: bigger fish always possible, more frequent with score
-                    val sizeRoll = Math.random().toFloat()
-                    val bigChance = (0.3f + score * 0.005f).coerceAtMost(0.6f)
-                    val maxEnemy = ENEMY_MAX_RADIUS_DP  // capped but always > max player
-                    val enemyRadius = if (sizeRoll < bigChance) {
-                        // Bigger than player
-                        playerRadius * (1.1f + Math.random().toFloat() * 0.7f)
-                    } else {
-                        // Smaller than player (safe to eat)
-                        ENEMY_MIN_RADIUS_DP + Math.random().toFloat() *
-                                (playerRadius - ENEMY_MIN_RADIUS_DP).coerceAtLeast(3f)
-                    }.coerceIn(ENEMY_MIN_RADIUS_DP, maxEnemy)
-
-                    val y = 0.08f + Math.random().toFloat() * 0.76f  // avoid seabed
-                    // Speed must be >= scroll speed so fish never go backwards
-                    val speed = baseSpeed * (1.0f + Math.random().toFloat() * 0.6f)
-
-                    updatedEnemies.add(
-                        EnemyFish(
-                            x = screenWDp + enemyRadius,
-                            y = y,
-                            radius = enemyRadius,
-                            speed = speed
-                        )
+                updatedEnemies.add(
+                    EnemyFish(
+                        x = screenWDp + enemyRadius,
+                        y = y,
+                        radius = enemyRadius,
+                        speed = speed
                     )
-                }
-                enemies = updatedEnemies
+                )
+            }
+            enemies = updatedEnemies
 
-                // --- Update rocks ---
-                val updatedRocks = rocks.toMutableList()
-                updatedRocks.forEach { it.x -= baseSpeed * clampedDt }
-                updatedRocks.removeAll { it.x < -ROCK_WIDTH_DP * 2 }
+            // --- Update rocks ---
+            val updatedRocks = rocks.toMutableList()
+            updatedRocks.forEach { it.x -= baseSpeed * clampedDt }
+            updatedRocks.removeAll { it.x < -FEAST_ROCK_WIDTH_DP * 2 }
 
-                // --- Spawn rocks ---
-                rockSpawnTimer += clampedDt
-                if (rockSpawnTimer >= ROCK_SPAWN_INTERVAL) {
-                    rockSpawnTimer = 0f
-                    val rockHeight = ROCK_MIN_HEIGHT_DP + Math.random().toFloat() *
-                            (ROCK_MAX_HEIGHT_DP - ROCK_MIN_HEIGHT_DP)
-                    val rockWidth = ROCK_WIDTH_DP * (0.6f + Math.random().toFloat() * 0.8f)
-                    updatedRocks.add(Rock(x = screenWDp + rockWidth, height = rockHeight, width = rockWidth))
-                }
-                rocks = updatedRocks
+            // --- Spawn rocks ---
+            rockSpawnTimer += clampedDt
+            if (rockSpawnTimer >= FEAST_ROCK_SPAWN_INTERVAL) {
+                rockSpawnTimer = 0f
+                val rockHeight = FEAST_ROCK_MIN_HEIGHT_DP + Math.random().toFloat() *
+                        (FEAST_ROCK_MAX_HEIGHT_DP - FEAST_ROCK_MIN_HEIGHT_DP)
+                val rockWidth = FEAST_ROCK_WIDTH_DP * (0.6f + Math.random().toFloat() * 0.8f)
+                updatedRocks.add(FeastRock(x = screenWDp + rockWidth, height = rockHeight, width = rockWidth))
+            }
+            rocks = updatedRocks
 
-                // --- Collisions (all in dp) ---
-                val fishXDp = 0.25f * screenWDp
-                val fishYDp = fishY * screenHDp
+            // --- Collisions (all in dp) ---
+            val fishXDp = 0.25f * screenWDp
+            val fishYDp = fishY * screenHDp
 
-                // Check enemy collisions
-                var collided = false
-                enemies.forEach { enemy ->
-                    if (enemy.eaten) return@forEach
-                    val enemyYDp = enemy.y * screenHDp
-                    val dx = fishXDp - enemy.x
-                    val dy = fishYDp - enemyYDp
-                    val d = sqrt(dx * dx + dy * dy)
-                    val touchDist = playerRadius + enemy.radius
+            // Check enemy collisions
+            var collided = false
+            enemies.forEach { enemy ->
+                if (enemy.eaten) return@forEach
+                val enemyYDp = enemy.y * screenHDp
+                val dx = fishXDp - enemy.x
+                val dy = fishYDp - enemyYDp
+                val d = sqrt(dx * dx + dy * dy)
+                val touchDist = playerRadius + enemy.radius
 
-                    if (d < touchDist * 0.7f) {  // overlap threshold
-                        if (playerRadius >= enemy.radius) {
-                            // Eat it!
-                            enemy.eaten = true
-                            score++
-                            playerRadius = (playerRadius + GROWTH_PER_EAT).coerceAtMost(MAX_PLAYER_RADIUS_DP)
-                        } else {
-                            collided = true
-                        }
-                    }
-                }
-
-                // Check rock collisions
-                val seabedYDp = 0.88f * screenHDp
-                rocks.forEach { rock ->
-                    if (feastRockHit(fishXDp, fishYDp, playerRadius,
-                            rock.x, rock.width, rock.height, seabedYDp)) {
+                if (d < touchDist * 0.7f) {  // overlap threshold
+                    if (playerRadius >= enemy.radius) {
+                        // Eat it!
+                        enemy.eaten = true
+                        score++
+                        playerRadius = (playerRadius + FEAST_GROWTH_PER_EAT).coerceAtMost(FEAST_MAX_PLAYER_RADIUS_DP)
+                    } else {
                         collided = true
                     }
                 }
+            }
 
-                if (collided) {
-                    highScore = max(highScore, score)
-                    gameState = GameState.GameOver(score)
+            // Check rock collisions
+            val seabedYDp = 0.88f * screenHDp
+            rocks.forEach { rock ->
+                if (feastRockHit(fishXDp, fishYDp, playerRadius,
+                        rock.x, rock.width, rock.height, seabedYDp)) {
+                    collided = true
                 }
+            }
+
+            if (collided) {
+                highScore = max(highScore, score)
+                gameState = GameState.GameOver(score)
             }
         }
     }
@@ -323,7 +310,7 @@ fun FuguFeastScreen(
                 val fishYClamped = fishYPx.coerceIn(playerRadiusPx * 1.5f, h * 0.88f - playerRadiusPx)
 
                 // Background
-                drawRect(BgColor)
+                drawRect(GameBgColor)
 
                 val seabedY = h * 0.88f
 
@@ -355,7 +342,7 @@ fun FuguFeastScreen(
                     lineTo(w, h)
                     close()
                 }
-                drawPath(seabedPath, SeabedColor)
+                drawPath(seabedPath, GameSeabedColor)
 
                 if (gameState is GameState.Playing || gameState is GameState.GameOver) {
                     // --- Draw enemies ---
@@ -399,7 +386,7 @@ fun FuguFeastScreen(
                 // --- Overlays ---
                 when (gameState) {
                     is GameState.WaitingToStart -> {
-                        drawFugu(w / 2f, h / 2f, PLAYER_START_RADIUS_DP * dpToPx * 1.5f)
+                        drawFugu(w / 2f, h / 2f, FEAST_PLAYER_START_RADIUS_DP * dpToPx * 1.5f)
                         drawOverlayText(
                             w, h,
                             if (isCalibrated && pressure != null)

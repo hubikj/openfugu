@@ -1,6 +1,5 @@
 package org.hubik.openfugu.game
 
-import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -25,26 +24,23 @@ import kotlin.math.max
 import kotlin.math.sin
 
 // =============================================================================
-// Game constants (tunable) — all spatial values in dp
+// Game constants (tunable) — all spatial values in dp.
+// Shared with Multiplayer Fugu Reef, hence not private.
 // =============================================================================
 
-private const val BASE_SCROLL_SPEED_DP = 120f   // dp per second (starting speed)
-private const val SPEED_INCREMENT = 0.02f        // multiplier increase per obstacle passed
-private const val GAP_SIZE = 0.25f               // fraction of screen height
-private const val OBSTACLE_SPACING_DP = 200      // dp between obstacle centers
-private const val FIRST_OBSTACLE_DP = 400        // dp — extra distance for first obstacle
-private const val PRESSURE_RANGE = 40.0          // hPa for full vertical range
-private const val SMOOTHING_FACTOR = 10f         // exponential smoothing rate
-private const val FISH_RADIUS_DP = 16            // dp
-private const val OBSTACLE_WIDTH_DP = 40         // dp
+const val REEF_SCROLL_SPEED_DP = 120f      // dp per second (starting speed)
+const val REEF_SPEED_INCREMENT = 0.02f     // multiplier increase per obstacle passed
+const val REEF_GAP_SIZE = 0.25f            // fraction of screen height
+const val REEF_OBSTACLE_SPACING_DP = 200   // dp between obstacle centers
+const val REEF_FIRST_OBSTACLE_DP = 400     // dp — extra distance for first obstacle
+const val REEF_FISH_RADIUS_DP = 16         // dp
+const val REEF_OBSTACLE_WIDTH_DP = 40      // dp
 
 // Colors (underwater theme, Chrome dino minimal style)
-private val BgColor = Color(0xFF0D1B2A)
-private val SeabedColor = Color(0xFF1A2D40)
-private val ObstacleColor = Color(0xFF2E8B57)
-private val ObstacleEdge = Color(0xFF3CB371)
+val ReefObstacleColor = Color(0xFF2E8B57)
+val ReefObstacleEdge = Color(0xFF3CB371)
 
-private data class Obstacle(
+data class ReefObstacle(
     var x: Float,               // dp from left edge
     val gapCenterY: Float,      // normalized 0..1
     var scored: Boolean = false
@@ -59,7 +55,7 @@ private data class Obstacle(
 fun FuguReefScreen(
     connection: DeviceConnection,
     onBack: () -> Unit,
-    pressureRange: Double = PRESSURE_RANGE,
+    pressureRange: Double = DEFAULT_PRESSURE_RANGE,
     negativeRange: Double = 0.0,
     expertMode: Boolean = false,
     deviceName: String = connection.displayName,
@@ -78,12 +74,9 @@ fun FuguReefScreen(
     var scrollOffset by remember { mutableFloatStateOf(0f) }  // dp, for seabed wave animation
     // Actual canvas size in dp, reported from the Canvas draw scope.
     var canvasSizeDp by remember { mutableStateOf(Pair(400f, 800f)) }
-    var obstacles by remember { mutableStateOf(listOf<Obstacle>()) }
+    var obstacles by remember { mutableStateOf(listOf<ReefObstacle>()) }
     var score by remember { mutableIntStateOf(0) }
     var highScore by remember { mutableIntStateOf(0) }
-
-    // Current scroll speed (increases with score)
-    val scrollSpeedDp = BASE_SCROLL_SPEED_DP * (1f + score * SPEED_INCREMENT)
 
     // Fish stays fully visible: account for radius as fraction of screen
     // We'll compute exact margin in the Canvas, but for game logic use a safe range
@@ -120,50 +113,40 @@ fun FuguReefScreen(
 
     // Game loop — all positions in dp, converted to px only at draw time
     LaunchedEffect(gameState) {
-        if (gameState !is GameState.Playing) return@LaunchedEffect
+        runFrameLoop({ gameState is GameState.Playing }) { clampedDt ->
+            // Current speed with acceleration
+            val speed = REEF_SCROLL_SPEED_DP * (1f + score * REEF_SPEED_INCREMENT)
 
-        var lastNanos = 0L
-        while (gameState is GameState.Playing) {
-            withInfiniteAnimationFrameNanos { nanos ->
-                val dt = if (lastNanos == 0L) 0f
-                else (nanos - lastNanos) / 1_000_000_000f
-                lastNanos = nanos
-                val clampedDt = dt.coerceAtMost(0.05f)
+            // --- Update fish position from pressure ---
+            val currentPressure = pressure?.relativeHPa ?: 0.0
+            val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
+            fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
+            fishY = fishY.coerceIn(fishMinY, fishMaxY)
 
-                // Current speed with acceleration
-                val speed = BASE_SCROLL_SPEED_DP * (1f + score * SPEED_INCREMENT)
+            // --- Scroll obstacles (in dp) ---
+            scrollOffset += speed * clampedDt
+            val updated = obstacles.toMutableList()
+            updated.forEach { it.x -= speed * clampedDt }
 
-                // --- Update fish position from pressure ---
-                val currentPressure = pressure?.relativeHPa ?: 0.0
-                val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
-                fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
-                fishY = fishY.coerceIn(fishMinY, fishMaxY)
+            // Remove off-screen obstacles
+            updated.removeAll { it.x < -(REEF_OBSTACLE_WIDTH_DP * 2) }
 
-                // --- Scroll obstacles (in dp) ---
-                scrollOffset += speed * clampedDt
-                val updated = obstacles.toMutableList()
-                updated.forEach { it.x -= speed * clampedDt }
-
-                // Remove off-screen obstacles
-                updated.removeAll { it.x < -(OBSTACLE_WIDTH_DP * 2) }
-
-                // Spawn new obstacles, based on the real canvas width
-                val screenWidthDp = canvasSizeDp.first
-                val rightEdge = updated.maxOfOrNull { it.x }
-                val spawnThreshold = screenWidthDp + OBSTACLE_WIDTH_DP
-                if (rightEdge == null || rightEdge < spawnThreshold) {
-                    val gapCenter = 0.2f + Math.random().toFloat() * 0.6f
-                    val spawnX = if (updated.isEmpty()) {
-                        // First obstacle: give player time to swim up
-                        screenWidthDp + FIRST_OBSTACLE_DP
-                    } else {
-                        rightEdge!! + OBSTACLE_SPACING_DP
-                    }
-                    updated.add(Obstacle(x = spawnX, gapCenterY = gapCenter))
+            // Spawn new obstacles, based on the real canvas width
+            val screenWidthDp = canvasSizeDp.first
+            val rightEdge = updated.maxOfOrNull { it.x }
+            val spawnThreshold = screenWidthDp + REEF_OBSTACLE_WIDTH_DP
+            if (rightEdge == null || rightEdge < spawnThreshold) {
+                val gapCenter = 0.2f + Math.random().toFloat() * 0.6f
+                val spawnX = if (updated.isEmpty()) {
+                    // First obstacle: give player time to swim up
+                    screenWidthDp + REEF_FIRST_OBSTACLE_DP
+                } else {
+                    rightEdge!! + REEF_OBSTACLE_SPACING_DP
                 }
-
-                obstacles = updated
+                updated.add(ReefObstacle(x = spawnX, gapCenterY = gapCenter))
             }
+
+            obstacles = updated
         }
     }
 
@@ -209,8 +192,8 @@ fun FuguReefScreen(
                 if (canvasSizeDp.first != w / dpToPx || canvasSizeDp.second != h / dpToPx) {
                     canvasSizeDp = Pair(w / dpToPx, h / dpToPx)
                 }
-                val fishRadiusPx = FISH_RADIUS_DP * dpToPx
-                val obstacleWidthPx = OBSTACLE_WIDTH_DP * dpToPx
+                val fishRadiusPx = REEF_FISH_RADIUS_DP * dpToPx
+                val obstacleWidthPx = REEF_OBSTACLE_WIDTH_DP * dpToPx
                 val fishX = w * 0.25f
                 val fishYPx = h * fishY
 
@@ -218,7 +201,7 @@ fun FuguReefScreen(
                 val fishYClamped = fishYPx.coerceIn(fishRadiusPx * 1.5f, h - fishRadiusPx * 1.5f)
 
                 // Background
-                drawRect(BgColor)
+                drawRect(GameBgColor)
 
                 // Wavy seabed at bottom — scrolls with obstacles for parallax
                 val seabedY = h * 0.85f
@@ -236,28 +219,28 @@ fun FuguReefScreen(
                     lineTo(w, h)
                     close()
                 }
-                drawPath(seabedPath, SeabedColor)
+                drawPath(seabedPath, GameSeabedColor)
 
                 if (gameState is GameState.Playing || gameState is GameState.GameOver) {
                     // --- Draw obstacles + collision ---
                     var collided = false
                     obstacles.forEach { obs ->
                         val obsLeftPx = obs.x * dpToPx
-                        val gapTop = h * (obs.gapCenterY - GAP_SIZE / 2f)
-                        val gapBottom = h * (obs.gapCenterY + GAP_SIZE / 2f)
+                        val gapTop = h * (obs.gapCenterY - REEF_GAP_SIZE / 2f)
+                        val gapBottom = h * (obs.gapCenterY + REEF_GAP_SIZE / 2f)
                         val obsRightPx = obsLeftPx + obstacleWidthPx
 
                         // Only draw if on screen
                         if (obsRightPx > 0f && obsLeftPx < w) {
                             // Top barrier
                             drawRoundRect(
-                                ObstacleColor,
+                                ReefObstacleColor,
                                 topLeft = Offset(obsLeftPx, 0f),
                                 size = Size(obstacleWidthPx, gapTop),
                                 cornerRadius = CornerRadius(6f)
                             )
                             drawRoundRect(
-                                ObstacleEdge,
+                                ReefObstacleEdge,
                                 topLeft = Offset(obsLeftPx - 4f, gapTop - 12f),
                                 size = Size(obstacleWidthPx + 8f, 12f),
                                 cornerRadius = CornerRadius(4f)
@@ -265,13 +248,13 @@ fun FuguReefScreen(
 
                             // Bottom barrier
                             drawRoundRect(
-                                ObstacleColor,
+                                ReefObstacleColor,
                                 topLeft = Offset(obsLeftPx, gapBottom),
                                 size = Size(obstacleWidthPx, h - gapBottom),
                                 cornerRadius = CornerRadius(6f)
                             )
                             drawRoundRect(
-                                ObstacleEdge,
+                                ReefObstacleEdge,
                                 topLeft = Offset(obsLeftPx - 4f, gapBottom),
                                 size = Size(obstacleWidthPx + 8f, 12f),
                                 cornerRadius = CornerRadius(4f)

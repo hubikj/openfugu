@@ -1,6 +1,5 @@
 package org.hubik.openfugu.game
 
-import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,14 +23,13 @@ import kotlin.math.max
 import kotlin.math.sin
 
 // =============================================================================
-// Game constants — all spatial values in dp
+// Game constants — all spatial values in dp.
+// The CAVE_* constants are shared with Multiplayer Fugu Cave, hence not private.
 // =============================================================================
 
-private const val BASE_SCROLL_SPEED_DP = 150f   // dp/s starting speed
-private const val SPEED_INCREMENT = 0.0008f      // speed multiplier increase per distance point
-private const val PRESSURE_RANGE = 40.0          // hPa for full vertical range
-private const val SMOOTHING_FACTOR = 10f         // exponential smoothing rate
-private const val FISH_RADIUS_DP = 16f           // dp
+const val CAVE_SCROLL_SPEED_DP = 150f       // dp/s starting speed
+const val CAVE_SPEED_INCREMENT = 0.0008f    // speed multiplier increase per distance point
+const val CAVE_FISH_RADIUS_DP = 16f         // dp
 
 // Cave generation
 private const val SAFE_START_SEGMENTS = 8        // gradual funnel before cave narrows in
@@ -51,7 +49,6 @@ private const val JITTER_AMP_DP = 4f             // dp amplitude of rocky jitter
 private const val JITTER_POINTS_PER_SEGMENT = 4  // sub-points per segment for rocky look
 
 // Colors (reuse Fugu Feast rock style)
-private val BgColor = Color(0xFF0D1B2A)
 private val CaveColor = Color(0xFF4A3728)
 private val CaveEdge = Color(0xFF5E4A3A)
 
@@ -187,7 +184,7 @@ fun caveGapAt(segments: List<CaveSegment>, xDp: Float): Pair<Float, Float>? {
 fun FuguCaveScreen(
     connection: DeviceConnection,
     onBack: () -> Unit,
-    pressureRange: Double = PRESSURE_RANGE,
+    pressureRange: Double = DEFAULT_PRESSURE_RANGE,
     negativeRange: Double = 0.0,
     expertMode: Boolean = false,
     deviceName: String = connection.displayName,
@@ -241,49 +238,39 @@ fun FuguCaveScreen(
 
     // Game loop
     LaunchedEffect(gameState) {
-        if (gameState !is GameState.Playing) return@LaunchedEffect
+        runFrameLoop({ gameState is GameState.Playing }) { clampedDt ->
+            val speedMultiplier = 1f + score * CAVE_SPEED_INCREMENT
+            val speed = CAVE_SCROLL_SPEED_DP * speedMultiplier
 
-        var lastNanos = 0L
-        while (gameState is GameState.Playing) {
-            withInfiniteAnimationFrameNanos { nanos ->
-                val dt = if (lastNanos == 0L) 0f
-                else (nanos - lastNanos) / 1_000_000_000f
-                lastNanos = nanos
-                val clampedDt = dt.coerceAtMost(0.05f)
+            // --- Fish position from pressure ---
+            val currentPressure = pressure?.relativeHPa ?: 0.0
+            val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
+            fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
+            fishY = fishY.coerceIn(fishMinY, fishMaxY)
 
-                val speedMultiplier = 1f + score * SPEED_INCREMENT
-                val speed = BASE_SCROLL_SPEED_DP * speedMultiplier
+            // --- Scroll segments ---
+            val scrollDp = speed * clampedDt
+            scrollOffset += scrollDp
+            val (screenWDp, screenHDp) = canvasSizeDp
+            val updated = advanceCave(segments, scrollDp, screenWDp, score)
+            segments = updated
 
-                // --- Fish position from pressure ---
-                val currentPressure = pressure?.relativeHPa ?: 0.0
-                val targetY = calculateTargetY(currentPressure, pressureRange, negativeRange, expertMode)
-                fishY += (targetY - fishY) * SMOOTHING_FACTOR * clampedDt
-                fishY = fishY.coerceIn(fishMinY, fishMaxY)
+            // --- Score (distance based) ---
+            score = (scrollOffset / 20f).toInt()
 
-                // --- Scroll segments ---
-                val scrollDp = speed * clampedDt
-                scrollOffset += scrollDp
-                val (screenWDp, screenHDp) = canvasSizeDp
-                val updated = advanceCave(segments, scrollDp, screenWDp, score)
-                segments = updated
+            // --- Collision ---
+            val fishXDp = 0.25f * screenWDp
+            val (ceilingAtFish, floorAtFish) = caveGapAt(updated, fishXDp)
+                ?: return@runFrameLoop
 
-                // --- Score (distance based) ---
-                score = (scrollOffset / 20f).toInt()
+            // Convert to dp positions and check overlap
+            val ceilingDp = ceilingAtFish * screenHDp
+            val floorDp = floorAtFish * screenHDp
+            val fishYDp = fishY * screenHDp
 
-                // --- Collision ---
-                val fishXDp = 0.25f * screenWDp
-                val (ceilingAtFish, floorAtFish) = caveGapAt(updated, fishXDp)
-                    ?: return@withInfiniteAnimationFrameNanos
-
-                // Convert to dp positions and check overlap
-                val ceilingDp = ceilingAtFish * screenHDp
-                val floorDp = floorAtFish * screenHDp
-                val fishYDp = fishY * screenHDp
-
-                if (fishYDp - FISH_RADIUS_DP < ceilingDp || fishYDp + FISH_RADIUS_DP > floorDp) {
-                    highScore = max(highScore, score)
-                    gameState = GameState.GameOver(score)
-                }
+            if (fishYDp - CAVE_FISH_RADIUS_DP < ceilingDp || fishYDp + CAVE_FISH_RADIUS_DP > floorDp) {
+                highScore = max(highScore, score)
+                gameState = GameState.GameOver(score)
             }
         }
     }
@@ -335,12 +322,12 @@ fun FuguCaveScreen(
                     canvasSizeDp = Pair(wDp, hDp)
                 }
 
-                val fishRadiusPx = FISH_RADIUS_DP * dpToPx
+                val fishRadiusPx = CAVE_FISH_RADIUS_DP * dpToPx
                 val fishX = w * 0.25f
                 val fishYPx = h * fishY
 
                 // Background
-                drawRect(BgColor)
+                drawRect(GameBgColor)
 
                 if (segments.size >= 2 &&
                     (gameState is GameState.Playing || gameState is GameState.GameOver)

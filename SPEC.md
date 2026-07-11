@@ -190,7 +190,9 @@ Player position is exponentially smoothed toward the target:
 All games gate the start on an established baseline and live pressure and
 auto-save a session at game over. Single-player games end with a notice if
 the device disconnects; in multiplayer games a disconnect eliminates only
-that player and the game continues. Distances below are in dp on a
+that player and the game continues while at least two players remain — if
+a disconnect leaves fewer than two, the game aborts with a notice and no
+results are saved. Distances below are in dp on a
 portrait phone screen; ports should treat them as proportions of a
 ~400 dp-wide, ~800 dp-tall play area.
 
@@ -253,7 +255,7 @@ Procedurally generated cave corridor; survive as long as possible.
 Speed 150 dp/s × `(1 + distance × 0.0008)`; segments every 50 dp; gap
 narrows from 0.22 to 0.15 of screen height at 0.00006 per distance point;
 wall drift ≤ 0.14 per segment with 0.35 momentum bias; 8 safe starting
-segments. Score = distance.
+segments. Score = distance, where one distance point = 20 dp of scroll.
 
 ### 6.7 Multiplayer Fugu Cave (2–7 players)
 
