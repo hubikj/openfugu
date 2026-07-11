@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ChartLine
 import org.hubik.openfugu.PressureChart
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.PressureReading
 import org.hubik.openfugu.ble.formatHPa
 import org.hubik.openfugu.ui.AppColors
@@ -42,7 +42,7 @@ private enum class Duration(val label: String, val seconds: Int) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConstantEqScreen(
-    connection: DeviceConnection,
+    connection: PressureSource,
     lineColor: androidx.compose.ui.graphics.Color? = null,
     minEqPressureHPa: Double,
     deviceName: String = connection.displayName,
@@ -218,7 +218,7 @@ private fun SetupScreen(
 
 @Composable
 private fun RunningScreen(
-    connection: DeviceConnection,
+    connection: PressureSource,
     lineColor: androidx.compose.ui.graphics.Color? = null,
     minEqPressureHPa: Double,
     difficulty: Difficulty,

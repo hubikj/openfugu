@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.SavedDevice
 import org.hubik.openfugu.ble.UserProfile
@@ -26,7 +26,7 @@ import org.hubik.openfugu.session.SessionType
 // =============================================================================
 
 data class MultiplayerPlayerInfo(
-    val connection: DeviceConnection,
+    val connection: PressureSource,
     val userProfile: UserProfile?,
     val savedDevice: SavedDevice,
     val color: Color,

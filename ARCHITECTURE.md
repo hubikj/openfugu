@@ -16,9 +16,11 @@ app/src/main/java/org/hubik/openfugu/
 ├── UsersTab.kt              — User profile list, paired devices
 ├── LogsTab.kt               — Debug log display, copy/save
 │
-├── ble/                     — Bluetooth LE layer
+├── ble/                     — Pressure sources (BLE layer + simulated)
 │   ├── EFuguViewModel.kt   — Central state management (ViewModel)
-│   ├── DeviceConnection.kt  — Per-device BLE connection + data stream
+│   ├── PressureSource.kt    — Abstract source: shared ingestion pipeline (calibration, history, chart)
+│   ├── DeviceConnection.kt  — PressureSource over BLE (GATT, auth, notification parsing)
+│   ├── MockDeviceConnection.kt — Simulated PressureSource (20 Hz ticker, slider/sine driven)
 │   ├── EFuguUuids.kt        — BLE service/characteristic UUIDs
 │   ├── UserProfile.kt       — User profile + device-user pairing data classes
 │   ├── PeakDetector.kt      — Peak detection for min EQ calibration
@@ -28,6 +30,7 @@ app/src/main/java/org/hubik/openfugu/
 │   ├── SharedComponents.kt  — AppColors, StatRow, HpaValueRow, PeakConfirmDialog
 │   ├── CalibrationWizard.kt — Multi-step pressure calibration (4 steps + summary)
 │   ├── UserDetailScreen.kt  — Per-user settings (calibration, range, expert mode, assigned devices)
+│   ├── MockDeviceOverlay.kt — Floating sliders controlling simulated devices (over all screens)
 │   └── theme/               — Material 3 theme (Color, Theme, Type)
 │
 ├── session/                 — Session recording and replay
@@ -55,13 +58,17 @@ app/src/main/java/org/hubik/openfugu/
 
 ## Data Flow
 
-### BLE → UI Pipeline
+### Source → UI Pipeline
 
 ```
-eFugu device (BLE notification, ASCII Pascals, ~20 Hz)
-  ↓  (all GATT callbacks are Handler-confined to the main thread)
-DeviceConnection.gattCallback.onCharacteristicChanged()
-  ↓ parse ASCII → Double (finite values only), subtract ambient baseline → relativeHPa
+eFugu device (BLE notification,     MockDeviceConnection ticker
+ASCII Pascals, ~20 Hz)              (20 Hz coroutine on Dispatchers.Main,
+  ↓  (GATT callbacks are            slider/sine target + low-pass + noise)
+  Handler-confined to the             ↓
+  main thread; parse ASCII,           ↓
+  finite values only)                 ↓
+  └────────────→ PressureSource.ingestPressureHPa() ←──────────┘
+  ↓ auto-calibrate ambient baseline (first 20 samples), subtract → relativeHPa
 PressureReading(pressureHPa, relativeHPa, timestamp)
   ↓ ring buffer (60 min) + StateFlows
 latestPressure (every sample)     chartData (immutable snapshots)
@@ -88,7 +95,7 @@ is specified platform-neutrally in [SPEC.md](SPEC.md).
 
 | State | Type | Persistence |
 |-------|------|-------------|
-| `connections` | `Map<String, DeviceConnection>` | In-memory only |
+| `connections` | `Map<String, PressureSource>` | In-memory only |
 | `savedDevices` | `List<SavedDevice>` | SharedPreferences (JSON) |
 | `userProfiles` | `List<UserProfile>` | SharedPreferences (JSON) |
 | `deviceUserPairings` | `List<DeviceUserPairing>` | SharedPreferences (JSON) |
@@ -97,7 +104,7 @@ is specified platform-neutrally in [SPEC.md](SPEC.md).
 | `scannedDevices` | `List<ScannedDevice>` | In-memory only |
 | `logMessages` | `List<String>` | In-memory only |
 
-Each `DeviceConnection` owns its own state:
+Each `PressureSource` (BLE `DeviceConnection` or simulated `MockDeviceConnection`) owns its own state:
 
 | State | Description |
 |-------|-------------|
@@ -105,7 +112,7 @@ Each `DeviceConnection` owns its own state:
 | `latestPressure` | Most recent PressureReading (null until calibrated) |
 | `chartData` | Rolling 60-minute pressure history (~72000 samples at 20 Hz) |
 | `chartMin` / `chartMax` | Running min/max of relative pressure |
-| `batteryLevel` | 0-100% (from standard Battery Service) |
+| `batteryLevel` | 0-100% (Battery Service on real devices; fixed 100 for simulated) |
 | `deviceInfo` | Firmware, hardware, serial, manufacturer |
 | `isCalibrated` | True after ambient baseline is established (~20 samples) |
 
@@ -153,7 +160,10 @@ files are rejected with a toast.
 ## Key Design Decisions
 
 ### Multi-device from the start
-`connections` is a `Map<String, DeviceConnection>` — every device has independent state. The UI adapts: single device = full panel, multiple = scrollable compact cards.
+`connections` is a `Map<String, PressureSource>` — every device has independent state. The UI adapts: single device = full panel, multiple = scrollable compact cards.
+
+### Pressure sources are abstract
+Everything above the BLE layer depends on `PressureSource`, never on `DeviceConnection` directly. The base class owns the ingestion pipeline (ambient auto-calibration, history ring buffer, chart snapshots, running extremes — unit-tested in `PressureSourceTest`), so both sources behave identically downstream. `MockDeviceConnection` (addresses `MOCK-1`, `MOCK-2`, …) is a simulated source: added from an unobtrusive button at the bottom of the Devices tab, saved and user-paired like real hardware, driven by floating sliders (`MockDeviceOverlay`, mounted in `MainActivity` above `EFuguApp` so it draws over every screen including games) with a per-device sine-wave mode for hands-free demos. Simulated devices need no Bluetooth at all — the app is fully explorable on the emulator, including multiplayer games with several mocks. This extraction is also the first M0 step toward Kotlin Multiplatform (see IDEAS.md).
 
 ### User ≠ Device
 Users (profiles with calibration data) and devices (BLE hardware) are separate entities linked by `DeviceUserPairing`. One user can be paired to multiple devices. In a group setting, an instructor can quickly reassign users to different devices via the device picker.

@@ -108,8 +108,8 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     private val _deviceUserPairings = MutableStateFlow<List<DeviceUserPairing>>(emptyList())
     val deviceUserPairings = _deviceUserPairings.asStateFlow()
 
-    // --- Active connections (address -> DeviceConnection) ---
-    private val _connections = MutableStateFlow<Map<String, DeviceConnection>>(emptyMap())
+    // --- Active connections (address -> PressureSource: BLE device or simulated) ---
+    private val _connections = MutableStateFlow<Map<String, PressureSource>>(emptyMap())
     val connections = _connections.asStateFlow()
 
     // --- Session recording ---
@@ -442,6 +442,13 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         // Don't double-connect
         if (_connections.value.containsKey(address)) return
 
+        // Simulated devices bypass Bluetooth entirely — they work with the
+        // adapter absent or disabled (e.g. on the emulator).
+        if (MockDeviceConnection.isMockAddress(address)) {
+            connectMockDevice(address)
+            return
+        }
+
         val adapter = bluetoothAdapter ?: run {
             log("Bluetooth not available")
             return
@@ -476,6 +483,41 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
 
         _connections.value = _connections.value + (address to connection)
         connection.connect(adapter)
+    }
+
+    /**
+     * Add a new simulated device and connect it immediately. Saved and paired
+     * like a real device, so calibration-dependent features work; several can
+     * run at once for multiplayer testing.
+     */
+    fun addMockDevice() {
+        val used = _savedDevices.value
+            .filter { MockDeviceConnection.isMockAddress(it.address) }
+            .mapNotNull { it.address.removePrefix(MockDeviceConnection.ADDRESS_PREFIX).toIntOrNull() }
+            .toSet()
+        val number = generateSequence(1) { it + 1 }.first { it !in used }
+        connectMockDevice("${MockDeviceConnection.ADDRESS_PREFIX}$number")
+    }
+
+    private fun connectMockDevice(address: String) {
+        if (_connections.value.containsKey(address)) return
+        manuallyDisconnected.remove(address)
+
+        val number = address.removePrefix(MockDeviceConnection.ADDRESS_PREFIX)
+        val saved = _savedDevices.value.find { it.address == address }
+            ?: SavedDevice(address, "Simulated $number", null, System.currentTimeMillis())
+
+        rememberDevice(saved.name, address)
+        val updatedSaved = _savedDevices.value.find { it.address == address } ?: saved
+
+        val connection = MockDeviceConnection(
+            address = address,
+            savedDevice = updatedSaved,
+            onLog = { msg -> log("[$address] $msg") },
+            scope = viewModelScope
+        )
+        _connections.value = _connections.value + (address to connection)
+        connection.start()
     }
 
     private fun removeConnection(address: String) {
@@ -559,12 +601,14 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         // Auto-connect to the most recently used saved device, but only when
         // nothing else is already connected, and never to a device the user
         // manually disconnected this app run — a manual disconnect must stick
-        // even while the scan still sees the device nearby.
-        val saved = _savedDevices.value
-        if (saved.isNotEmpty() &&
+        // even while the scan still sees the device nearby. Simulated devices
+        // never appear in scans, so skip them when picking the MRU device or a
+        // recently-used mock would block real-device auto-connect forever.
+        val mruDevice = _savedDevices.value
+            .firstOrNull { !MockDeviceConnection.isMockAddress(it.address) }
+        if (mruDevice != null &&
             _connections.value.isEmpty() &&
             _scanState.value is ScanState.Scanning) {
-            val mruDevice = saved.first()
             if (device.address == mruDevice.address &&
                 mruDevice.address !in manuallyDisconnected) {
                 log("Auto-connecting to ${mruDevice.displayName}...")

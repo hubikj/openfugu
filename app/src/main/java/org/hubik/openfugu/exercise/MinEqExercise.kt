@@ -13,7 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ChartLine
 import org.hubik.openfugu.PressureChart
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.PeakDetector
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.ble.formatHPa
@@ -33,7 +33,7 @@ data class PeakMarker(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MinEqExerciseScreen(
-    connection: DeviceConnection,
+    connection: PressureSource,
     lineColor: androidx.compose.ui.graphics.Color? = null,
     userProfiles: List<UserProfile>,
     currentProfileId: String?,

@@ -18,7 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.ui.unit.sp
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.EFuguViewModel
 import org.hubik.openfugu.ble.PeakDetector
@@ -52,7 +52,7 @@ private class HoldStepResults {
 fun CalibrationWizard(
     viewModel: EFuguViewModel,
     userId: String,
-    connections: Map<String, DeviceConnection>,
+    connections: Map<String, PressureSource>,
     onBack: () -> Unit,
     onComplete: () -> Unit
 ) {
@@ -248,7 +248,7 @@ private fun IntroStep(
     deviceName: String,
     deviceColorArgb: Long?,
     showDeviceChooser: Boolean,
-    connections: Map<String, DeviceConnection>,
+    connections: Map<String, PressureSource>,
     savedDevices: List<SavedDevice>,
     userProfiles: List<UserProfile>,
     deviceUserPairings: List<org.hubik.openfugu.ble.DeviceUserPairing>,
@@ -355,7 +355,7 @@ private fun IntroStep(
 
 @Composable
 private fun MinEqStep(
-    connection: DeviceConnection,
+    connection: PressureSource,
     results: MinEqStepResults,
     lineColor: Color? = null,
     modifier: Modifier = Modifier,
@@ -551,7 +551,7 @@ private fun MinEqStep(
 
 @Composable
 private fun MaxPressureStep(
-    connection: DeviceConnection,
+    connection: PressureSource,
     results: HoldStepResults,
     lineColor: Color? = null,
     title: String,

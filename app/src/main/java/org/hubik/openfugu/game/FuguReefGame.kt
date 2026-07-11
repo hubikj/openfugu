@@ -18,7 +18,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.formatHPa
 import kotlin.math.max
 import kotlin.math.sin
@@ -53,7 +53,7 @@ data class ReefObstacle(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FuguReefScreen(
-    connection: DeviceConnection,
+    connection: PressureSource,
     onBack: () -> Unit,
     pressureRange: Double = DEFAULT_PRESSURE_RANGE,
     negativeRange: Double = 0.0,

@@ -5,70 +5,28 @@ import android.bluetooth.*
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import java.security.SecureRandom
 
-sealed class DeviceConnectionState {
-    data object Connecting : DeviceConnectionState()
-    data object Connected : DeviceConnectionState()
-    data object Disconnected : DeviceConnectionState()
-    data class Error(val message: String) : DeviceConnectionState()
-}
-
 /**
- * Encapsulates all state and BLE logic for a single connected eFugu device.
- * Each instance owns its own BluetoothGatt, GATT callback, pressure stream,
- * calibration, auth, and chart data.
+ * A [PressureSource] backed by a real eFugu device over BLE. Owns the
+ * BluetoothGatt, GATT callback, auth, and pressure-notification parsing;
+ * the shared ingestion pipeline (calibration, history, chart) lives in
+ * [PressureSource].
  */
 @SuppressLint("MissingPermission")
 class DeviceConnection(
-    val address: String,
-    val savedDevice: SavedDevice,
+    address: String,
+    savedDevice: SavedDevice,
     private val context: Context,
-    private val onLog: (String) -> Unit,
+    onLog: (String) -> Unit,
     private val onUnexpectedDisconnect: () -> Unit = {}
-) {
+) : PressureSource(address, savedDevice, onLog) {
     companion object {
-        private const val CHART_HISTORY_SIZE = 72000  // ~60 minutes at 20 Hz
-        // Publish a chart snapshot every N samples. 1 = every sample (20 Hz,
-        // smooth scrolling). Raise this if very long multi-device sessions
-        // ever jank: each publish copies the history list (references only —
-        // the per-sample boxing and full min/max scans are gone regardless).
-        private const val CHART_PUBLISH_EVERY = 1
         // Give up on unreachable devices well before the ~30 s system-level
         // GATT timeout. An in-range device completes a direct connect within
         // a couple of seconds.
         private const val CONNECT_TIMEOUT_MS = 10_000L
     }
-
-    // --- Observable state ---
-    private val _state = MutableStateFlow<DeviceConnectionState>(DeviceConnectionState.Connecting)
-    val state = _state.asStateFlow()
-
-    private val _latestPressure = MutableStateFlow<PressureReading?>(null)
-    val latestPressure = _latestPressure.asStateFlow()
-
-    private val _chartData = MutableStateFlow<List<PressureReading>>(emptyList())
-    val chartData = _chartData.asStateFlow()
-
-    private val _chartMin = MutableStateFlow<Double?>(null)
-    val chartMin = _chartMin.asStateFlow()
-
-    private val _chartMax = MutableStateFlow<Double?>(null)
-    val chartMax = _chartMax.asStateFlow()
-
-    private val _batteryLevel = MutableStateFlow<Int?>(null)
-    val batteryLevel = _batteryLevel.asStateFlow()
-
-    private val _deviceInfo = MutableStateFlow<Map<String, String>>(emptyMap())
-    val deviceInfo = _deviceInfo.asStateFlow()
-
-    private val _isCalibrated = MutableStateFlow(false)
-    val isCalibrated = _isCalibrated.asStateFlow()
-
-    val displayName: String get() = savedDevice.displayName
 
     // --- BLE internals ---
     private var gatt: BluetoothGatt? = null
@@ -79,7 +37,7 @@ class DeviceConnection(
     private val mainHandler = Handler(Looper.getMainLooper())
     private val connectTimeoutRunnable = Runnable {
         val g = gatt
-        if (g != null && _state.value is DeviceConnectionState.Connecting) {
+        if (g != null && state.value is DeviceConnectionState.Connecting) {
             abortConnection(g, "Connection timed out — device not reachable")
         }
     }
@@ -89,34 +47,6 @@ class DeviceConnection(
     private var authChallenge: ByteArray? = null
     private var authResponseBuffer = ByteArray(0)
     private var authComplete = false
-
-    // Calibration
-    private var ambientBaselineHPa: Double? = null
-    private var calibrationSamples = mutableListOf<Double>()
-
-    // Full pressure history (ring buffer), touched only on the main thread
-    // (GATT callbacks are Handler-confined). _chartData publishes immutable
-    // snapshots of it at a reduced rate — copying the full list on every
-    // 20 Hz sample was a measured CPU/GC hotspot.
-    private val history = ArrayDeque<PressureReading>(1024)
-    private var samplesSincePublish = 0
-    private var runningMin = Double.POSITIVE_INFINITY
-    private var runningMax = Double.NEGATIVE_INFINITY
-
-    private var pressureLogCounter = 0
-
-    /**
-     * Immutable copy of the full pressure history, including samples not yet
-     * published to [chartData]. Use for session traces at exercise/game end.
-     */
-    fun historySnapshot(): List<PressureReading> = ArrayList(history)
-
-    private fun clearHistory() {
-        history.clear()
-        samplesSincePublish = 0
-        runningMin = Double.POSITIVE_INFINITY
-        runningMax = Double.NEGATIVE_INFINITY
-    }
 
     // --- Public API ---
 
@@ -141,38 +71,15 @@ class DeviceConnection(
         }
     }
 
-    fun disconnect() {
+    override fun disconnect() {
         mainHandler.removeCallbacks(connectTimeoutRunnable)
         gatt?.disconnect()
         gatt?.close()
         gatt = null
-        _state.value = DeviceConnectionState.Disconnected
-        _latestPressure.value = null
-        clearHistory()
-        _chartData.value = emptyList()
-        _chartMin.value = null
-        _chartMax.value = null
-        _batteryLevel.value = null
-        _deviceInfo.value = emptyMap()
         authChallenge = null
         authResponseBuffer = ByteArray(0)
         authComplete = false
-        ambientBaselineHPa = null
-        calibrationSamples.clear()
-        _isCalibrated.value = false
-        pressureLogCounter = 0
-    }
-
-    fun resetCalibration() {
-        ambientBaselineHPa = null
-        calibrationSamples.clear()
-        _isCalibrated.value = false
-        clearHistory()
-        _chartData.value = emptyList()
-        _chartMin.value = null
-        _chartMax.value = null
-        _latestPressure.value = null
-        onLog("Calibration reset")
+        resetSourceState()
     }
 
     /** Give up on a half-established connection: close, surface an error, notify the owner. */
@@ -404,52 +311,7 @@ class DeviceConnection(
         // toDoubleOrNull accepts "NaN"/"Infinity" — a single such frame would
         // permanently poison the calibration average, so require a finite value.
         val pressurePa = ascii.toDoubleOrNull()?.takeIf { it.isFinite() } ?: return
-        val pressureHPa = pressurePa / 100.0
-
-        // Auto-calibrate from first 20 readings (~1 second)
-        if (ambientBaselineHPa == null) {
-            calibrationSamples.add(pressureHPa)
-            if (calibrationSamples.size >= 20) {
-                ambientBaselineHPa = calibrationSamples.average()
-                _isCalibrated.value = true
-                onLog("Calibrated: baseline=${"%.1f".format(ambientBaselineHPa)} hPa")
-                calibrationSamples.clear()
-            }
-            return
-        }
-
-        val relativeHPa = pressureHPa - (ambientBaselineHPa ?: pressureHPa)
-        val reading = PressureReading(
-            pressureHPa = pressureHPa,
-            relativeHPa = relativeHPa
-        )
-        _latestPressure.value = reading
-
-        history.addLast(reading)
-        if (history.size > CHART_HISTORY_SIZE) {
-            history.removeFirst()
-        }
-
-        // Session-wide running extremes, updated incrementally.
-        if (relativeHPa < runningMin) {
-            runningMin = relativeHPa
-            _chartMin.value = relativeHPa
-        }
-        if (relativeHPa > runningMax) {
-            runningMax = relativeHPa
-            _chartMax.value = relativeHPa
-        }
-
-        if (++samplesSincePublish >= CHART_PUBLISH_EVERY) {
-            samplesSincePublish = 0
-            _chartData.value = ArrayList(history)
-        }
-
-        // Log every ~5 seconds
-        pressureLogCounter++
-        if (pressureLogCounter % 100 == 1) {
-            onLog("Pressure: ${"%.1f".format(relativeHPa)} hPa (abs=${"%.1f".format(pressureHPa)})")
-        }
+        ingestPressureHPa(pressurePa / 100.0)
     }
 
     private fun enableNotifications(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {

@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.DeviceUserPairing
 import org.hubik.openfugu.ble.SavedDevice
@@ -165,7 +165,7 @@ private val exerciseEntries = listOf(
 
 @Composable
 fun ExercisesTab(
-    connections: Map<String, DeviceConnection>,
+    connections: Map<String, PressureSource>,
     savedDevices: List<SavedDevice>,
     userProfiles: List<UserProfile>,
     deviceUserPairings: List<DeviceUserPairing>,
@@ -173,7 +173,7 @@ fun ExercisesTab(
     // Hoisted to the caller: this composable leaves composition whenever a game
     // runs or another tab is shown, so locally remembered state would reset
     lastUsedDeviceAddresses: List<String> = emptyList(),
-    onGameStart: (String, List<DeviceConnection>) -> Unit,
+    onGameStart: (String, List<PressureSource>) -> Unit,
     onSessionClick: (String) -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
     onPairUser: (String, String?) -> Unit,

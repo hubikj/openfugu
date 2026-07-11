@@ -20,7 +20,7 @@ A loose collection of ideas, not a committed roadmap: some are planned, some are
 **Goal:** Surface baseline drift everywhere, not just in the minimum equalization screens. The stuck-detector notice (PeakDetector, 10 s elevated) only covers peak detection — drift equally corrupts the Live chart, exercises, and games.
 
 **Concept (from device-testing the stuck notice, 2026-07-06):**
-- [ ] Detect drift in `DeviceConnection` itself so every screen can observe it: a `baselineDriftSuspected` StateFlow set when the smoothed relative pressure stays away from zero for a long window — noticeably longer than the peak detector's 10 seconds (e.g. 60 s) to avoid false positives during normal training
+- [ ] Detect drift in `PressureSource` itself so every screen can observe it: a `baselineDriftSuspected` StateFlow set when the smoothed relative pressure stays away from zero for a long window — noticeably longer than the peak detector's 10 seconds (e.g. 60 s) to avoid false positives during normal training
 - [ ] Distinguish drift from legitimate sustained effort: drift is a *flat* elevated signal (low variance), training pressure moves — require both "away from zero for the whole window" and "nearly constant" before flagging
 - [ ] Watch both directions (`|smoothed|`) — weather/elevation drift can go negative too, which PeakDetector never sees
 - [ ] Live tab: warning on the device card, reuse `BaselineDriftDialog` → the Recalibrate action already there
@@ -45,26 +45,6 @@ A loose collection of ideas, not a committed roadmap: some are planned, some are
 - Consider whether scores from different difficulty settings should rank separately
 
 **Safety note:** Fine as-is per the design principle — game scores already reward precision and survival, never raw pressure, so a leaderboard doesn't incentivize dangerous force.
-
----
-
-### Mock Device (simulated pressure source)
-**Goal:** A fake device that produces pressure data without any eFugu hardware, selectable wherever a real device would be.
-
-**Why:**
-- Development without hardware at hand — the Android emulator has no Bluetooth (and neither does the iOS simulator, if the iOS port ever happens), so today nothing past the Devices tab can be exercised without a physical eFugu
-- App Store review (should the iOS port reach that stage) — reviewers have no eFugu, a mock device lets them see the app working
-- Try-before-buy: people without a device can play the games and get a feel for the app
-- Reproducible screenshots and demos
-
-**UX concept:**
-- Mock device appears as a connectable entry (e.g. behind a developer toggle or long-press)
-- Pressure controlled with an overlay slider while a game/exercise runs — drag to "equalize"
-- Possibly scripted patterns too (replay a bundled session, sine wave) for hands-free demos
-
-**Technical notes:**
-- Extract an interface from `DeviceConnection` (pressure StateFlow, connection state) so exercises/games don't care whether the source is BLE or mock
-- The mock pairs with a user like any device, so calibration-dependent features work
 
 ---
 
@@ -323,10 +303,10 @@ Conclusion from a 2026-07-07 discussion — no commitment, recorded so the reaso
 - Distribution needs someone's Apple Developer account ($99/year) — mine or a contributor's. TestFlight external link for friends; builds expire after 90 days.
 
 **Milestones (estimated 2026-07-11, ~11,100 lines total at the time):**
-- **M0 — in-place preparation, Android-only, ships to Play as normal releases.** (a) Swap JVM/Android-isms in otherwise-portable code: `org.json` → kotlinx.serialization (SessionJson/SessionRepository/EFuguViewModel prefs), `java.util.UUID` → kotlin.uuid, `SimpleDateFormat`/`java.time` → kotlinx-datetime, Toast → Snackbar, Android clipboard → Compose clipboard, `android.util.Log` → tiny logger. (b) Extract a pressure-source interface from DeviceConnection (Mock Device validates it), abstract file/preferences storage, split MainActivity's ~1,550 lines of composables from the ~180-line Activity shell. ~1,000 lines touched, low risk, valuable even if iOS never happens.
+- **M0 — in-place preparation, Android-only, ships to Play as normal releases.** (a) Swap JVM/Android-isms in otherwise-portable code: `org.json` → kotlinx.serialization (SessionJson/SessionRepository/EFuguViewModel prefs), `java.util.UUID` → kotlin.uuid, `SimpleDateFormat`/`java.time` → kotlinx-datetime, Toast → Snackbar, Android clipboard → Compose clipboard, `android.util.Log` → tiny logger. (b) Abstract file/preferences storage, split MainActivity's ~1,550 lines of composables from the ~180-line Activity shell. (The pressure-source extraction is done — `PressureSource`, validated by the shipped simulated device.) ~1,000 lines touched, low risk, valuable even if iOS never happens.
 - **M1 — KMP restructure.** `shared/` module (commonMain/androidMain), Compose Multiplatform Gradle plugin, ~6,800 lines (all games, exercises, charts, most screens — zero bad imports today) move verbatim. Risk is build-system friction, not runtime bugs.
-- **M2 — BLE rewrite on Kable, proven on Android first.** ~1,100 lines (DeviceConnection + BLE half of EFuguViewModel). The one genuinely risky milestone: multi-device, reconnects, timeouts were hard-won. Mitigate by keeping the old implementation switchable behind the interface. Device identity becomes an opaque string (MAC on Android, UUID on iOS).
-- **M3 — iOS shell boots.** Xcode project, CI signing pipeline, platform actuals (storage, share sheet, keep-screen-on, logger), static theme (no dynamic color on iOS). Games playable on the iPhone via Mock Device before BLE works. Little code, much toolchain friction.
+- **M2 — BLE rewrite on Kable, proven on Android first.** ~700 lines (DeviceConnection, now BLE-only after the PressureSource extraction, + BLE half of EFuguViewModel). The one genuinely risky milestone: multi-device, reconnects, timeouts were hard-won. Mitigate by keeping the old implementation switchable behind the interface. Device identity becomes an opaque string (MAC on Android, UUID on iOS).
+- **M3 — iOS shell boots.** Xcode project, CI signing pipeline, platform actuals (storage, share sheet, keep-screen-on, logger), static theme (no dynamic color on iOS). Games playable on the iPhone via the simulated device before BLE works. Little code, much toolchain friction.
 - **M4 — iOS BLE bring-up.** Kable's CoreBluetooth backend against a real eFugu: Info.plist permission strings, UUID identity, connection concurrency, `.fugu` import (UTType), portrait lock. Protocol already proven in M2; cost driver is CI build latency per iteration.
 - **M5 — TestFlight.** Paperwork.
 
@@ -346,5 +326,5 @@ If desktop support is ever wanted, it falls out of the Kotlin Multiplatform rest
 - [ ] Figure out what the `dcdf` BLE characteristic does (exercise start/stop? device config? LED control?) — needs another HCI snoop while using the official app's exercise modes
 
 ## Low Priority
-- [ ] Simulated dive mode — dry-run dive training: simulates the length of a breath hold and the frequency of equalizations. The user declares the depth at their first equalization; the app then predicts the following equalization points (same relative pressure-change intervals) down to the target depth and prompts the user to equalize at each one. The official app already has this; our focus is on games and instructor features. (Not to be confused with the Mock Device idea — this uses a real device.)
+- [ ] Simulated dive mode — dry-run dive training: simulates the length of a breath hold and the frequency of equalizations. The user declares the depth at their first equalization; the app then predicts the following equalization points (same relative pressure-change intervals) down to the target depth and prompts the user to equalize at each one. The official app already has this; our focus is on games and instructor features. (Not to be confused with the shipped simulated device — this uses a real device.)
 - [ ] Landscape orientation support

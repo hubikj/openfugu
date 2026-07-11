@@ -43,6 +43,9 @@ Before creating a new composable, color constant, or utility, check if a shared 
 
 Per-game tuning constants live once, public in the single-player file (`REEF_*`, `FEAST_*`, `CAVE_*`); multiplayer variants reuse them — never redefine a tuning constant in a second file.
 
+### Pressure sources
+Screens, exercises, and games depend on `ble/PressureSource.kt` (the abstract source owning the shared ingestion pipeline) — never on `DeviceConnection` directly. Simulated devices (`MockDeviceConnection`, `MOCK-n` addresses) must keep working wherever a real device does. Call them "simulated devices" in user-facing text ("mock" is developer jargon).
+
 ### User-facing text
 Spell out words: "equalization" not "EQ", "minimum" not "min", "maximum" not "max". Abbreviations are fine in code identifiers. Use "target range" not "target band".
 

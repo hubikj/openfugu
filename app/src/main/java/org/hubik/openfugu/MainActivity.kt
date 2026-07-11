@@ -62,9 +62,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import org.hubik.openfugu.ble.DeviceColors
 import org.hubik.openfugu.ble.DeviceUserPairing
 import org.hubik.openfugu.ble.UserProfile
-import org.hubik.openfugu.ble.DeviceConnection
+import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.EFuguViewModel
+import org.hubik.openfugu.ble.MockDeviceConnection
+import org.hubik.openfugu.ui.MockDeviceOverlay
 import org.hubik.openfugu.exercise.ConstantEqScreen
 import org.hubik.openfugu.exercise.MinEqExerciseScreen
 import org.hubik.openfugu.game.FuguCaveScreen
@@ -111,12 +113,17 @@ class MainActivity : ComponentActivity() {
         setContent {
             OpenFuguTheme {
                 efuguViewModel = viewModel()
-                EFuguApp(
-                    viewModel = efuguViewModel,
-                    onRequestPermissionsAndScan = { requestPermissionsAndScan() },
-                    importIntent = importIntent,
-                    onImportIntentHandled = { importIntent = null }
-                )
+                Box {
+                    EFuguApp(
+                        viewModel = efuguViewModel,
+                        onRequestPermissionsAndScan = { requestPermissionsAndScan() },
+                        importIntent = importIntent,
+                        onImportIntentHandled = { importIntent = null }
+                    )
+                    // Slider controls for simulated devices, drawn over every
+                    // screen (games included) while any mock is connected.
+                    MockDeviceOverlay(viewModel = efuguViewModel)
+                }
             }
         }
     }
@@ -514,6 +521,7 @@ fun EFuguApp(
                     if (userId != null) viewModel.pairDeviceToUser(addr, userId)
                     else viewModel.unpairDevice(addr)
                 },
+                onAddMockDevice = { viewModel.addMockDevice() },
                 modifier = Modifier.padding(padding)
             )
             3 -> UsersTab(
@@ -616,7 +624,7 @@ fun FirstUserDialog(
 
 @Composable
 fun LiveTab(
-    connections: Map<String, DeviceConnection>,
+    connections: Map<String, PressureSource>,
     viewModel: EFuguViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -665,7 +673,7 @@ fun LiveTab(
 /** Full-screen panel for single device (same layout as before) */
 @Composable
 fun SingleDevicePanel(
-    connection: DeviceConnection,
+    connection: PressureSource,
     viewModel: EFuguViewModel,
     modifier: Modifier = Modifier
 ) {
@@ -772,7 +780,7 @@ fun SingleDevicePanel(
 /** Compact panel for multi-device view */
 @Composable
 fun CompactDevicePanel(
-    connection: DeviceConnection,
+    connection: PressureSource,
     viewModel: EFuguViewModel
 ) {
     val connectionState by connection.state.collectAsState()
@@ -1112,7 +1120,7 @@ fun DevicesTab(
     scanState: ScanState,
     savedDevices: List<SavedDevice>,
     scannedDevices: List<ScannedDevice>,
-    connections: Map<String, DeviceConnection>,
+    connections: Map<String, PressureSource>,
     userProfiles: List<UserProfile>,
     deviceUserPairings: List<DeviceUserPairing>,
     onScan: () -> Unit,
@@ -1123,6 +1131,7 @@ fun DevicesTab(
     onNicknameSet: (String, String?) -> Unit,
     onColorSet: (String, Long?) -> Unit,
     onPairUser: (String, String?) -> Unit,
+    onAddMockDevice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1277,7 +1286,9 @@ fun DevicesTab(
                 if (index > 0) Spacer(modifier = Modifier.height(8.dp))
                 key(device.address) {
                     val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
-                    val isNearby = device.address in nearbyAddresses
+                    // Simulated devices are always connectable, no scan involved
+                    val isNearby = device.address in nearbyAddresses ||
+                        MockDeviceConnection.isMockAddress(device.address)
                     SavedDeviceRow(
                         device = device,
                         userProfiles = userProfiles,
@@ -1342,6 +1353,22 @@ fun DevicesTab(
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
         }
+
+        // Simulated device entry — deliberately unobtrusive. It lets the app
+        // be explored without eFugu hardware (development, demos, curiosity),
+        // but it is not a path we advertise to new users.
+        Spacer(modifier = Modifier.height(24.dp))
+        TextButton(
+            onClick = onAddMockDevice,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            Text(
+                "Add simulated device",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
     }
 }
 
@@ -1399,8 +1426,12 @@ fun SavedDeviceRow(
                     }
                 }
                 Text(
-                    if (device.nickname != null) "${device.name} — ${device.address}"
-                    else device.address,
+                    when {
+                        MockDeviceConnection.isMockAddress(device.address) ->
+                            if (device.nickname != null) device.name else "Simulated device"
+                        device.nickname != null -> "${device.name} — ${device.address}"
+                        else -> device.address
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1434,16 +1465,16 @@ fun SavedDeviceRow(
 
 @Composable
 fun DevicePickerDialog(
-    connections: Map<String, DeviceConnection>,
+    connections: Map<String, PressureSource>,
     savedDevices: List<SavedDevice>,
     userProfiles: List<UserProfile>,
     deviceUserPairings: List<DeviceUserPairing>,
     selectedAddress: String? = null,
-    onSelect: (DeviceConnection) -> Unit = {},
+    onSelect: (PressureSource) -> Unit = {},
     onPairUser: (deviceAddress: String, userId: String?) -> Unit,
     onDismiss: () -> Unit,
     multiSelect: Boolean = false,
-    onMultiSelect: (List<DeviceConnection>) -> Unit = {},
+    onMultiSelect: (List<PressureSource>) -> Unit = {},
     preselected: Set<String> = emptySet(),
     minSelect: Int = 1,
     maxSelect: Int = Int.MAX_VALUE,
