@@ -1438,6 +1438,7 @@ fun DevicePickerDialog(
     onMultiSelect: (List<DeviceConnection>) -> Unit = {},
     preselected: Set<String> = emptySet(),
     minSelect: Int = 1,
+    maxSelect: Int = Int.MAX_VALUE,
     disabledReason: (SavedDevice) -> String? = { null }
 ) {
     // Collect connection states keyed by address so Compose tracks each slot
@@ -1457,12 +1458,12 @@ fun DevicePickerDialog(
     var selectedAddresses by remember {
         mutableStateOf(preselected.filter { addr ->
             connectedDevices.any { it.address == addr && disabledReason(it) == null }
-        }.toSet())
+        }.take(maxSelect).toSet())
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (multiSelect) "Select devices" else "Select device") },
+        title = { Text(if (multiSelect && maxSelect > 1) "Select devices" else "Select device") },
         text = {
             Column {
                 connectedDevices.forEach { device ->
@@ -1471,39 +1472,44 @@ fun DevicePickerDialog(
                     val enabled = reason == null
                     val isSelected = if (multiSelect) device.address in selectedAddresses
                         else device.address == selectedAddress
+                    // Selection update shared by row tap and control tap:
+                    // radio semantics (replace) when only one pick is allowed,
+                    // capped toggle semantics otherwise
+                    val select = {
+                        selectedAddresses = when {
+                            maxSelect == 1 -> setOf(device.address)
+                            device.address in selectedAddresses -> selectedAddresses - device.address
+                            selectedAddresses.size < maxSelect -> selectedAddresses + device.address
+                            else -> selectedAddresses
+                        }
+                    }
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(enabled = enabled) {
-                                if (multiSelect) {
-                                    selectedAddresses = if (device.address in selectedAddresses)
-                                        selectedAddresses - device.address
-                                    else
-                                        selectedAddresses + device.address
-                                } else {
-                                    connections[device.address]?.let { onSelect(it) }
-                                }
+                                if (multiSelect) select()
+                                else connections[device.address]?.let { onSelect(it) }
                             }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (multiSelect) {
+                        if (multiSelect && maxSelect == 1) {
+                            RadioButton(
+                                selected = isSelected,
+                                enabled = enabled,
+                                onClick = select
+                            )
+                        } else if (multiSelect) {
                             Checkbox(
                                 checked = isSelected,
                                 enabled = enabled,
-                                onCheckedChange = { checked ->
-                                    selectedAddresses = if (checked)
-                                        selectedAddresses + device.address
-                                    else
-                                        selectedAddresses - device.address
-                                }
+                                onCheckedChange = { select() }
                             )
                         } else if (selectedAddress != null) {
-                            // Radio buttons only when there is a current
-                            // selection to display; launch-and-go pickers
-                            // (no selectedAddress) are a plain tap-to-choose
-                            // list — a radio there would never show as checked
+                            // Immediate-select mode (calibration wizard) shows
+                            // a radio only when there is a current selection
+                            // to display — it would never check otherwise
                             RadioButton(
                                 selected = isSelected,
                                 enabled = enabled,
@@ -1600,7 +1606,7 @@ fun DevicePickerDialog(
                     },
                     enabled = validSelection.size >= minSelect
                 ) {
-                    Text("Start (${validSelection.size})")
+                    Text(if (maxSelect == 1) "Start" else "Start (${validSelection.size})")
                 }
             } else {
                 TextButton(onClick = onDismiss) { Text("Close") }

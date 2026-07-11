@@ -405,13 +405,10 @@ fun ExercisesTab(
             savedDevices = savedDevices,
             userProfiles = userProfiles,
             deviceUserPairings = deviceUserPairings,
-            multiSelect = entry.maxPlayers > 1,
+            multiSelect = true,
             minSelect = entry.minPlayers,
+            maxSelect = entry.maxPlayers,
             preselected = lastUsedDeviceAddresses.toSet(),
-            onSelect = { conn ->
-                pickerEntry = null
-                onGameStart(entry.id, listOf(conn))
-            },
             onMultiSelect = { selected ->
                 pickerEntry = null
                 onGameStart(entry.id, selected)
