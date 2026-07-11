@@ -29,6 +29,7 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - [x] Device-user assignment management (remove assigned user from device, assign/remove devices on user detail)
 - [x] App version shown in the Logs screen and logged on startup
 - [x] Session files rounded to 3 decimals (compact, no floating-point noise)
+- [x] Unified game launch — no separate multiplayer section; one card per game, devices picked per launch when several are connected (checkboxes where multiplayer is supported, one selection runs single-player; radio buttons for single-player-only entries; last-used devices pre-checked). New games declare a player range on their `ExerciseEntry` in ExercisesTab.kt
 
 ---
 
@@ -95,7 +96,7 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - [ ] Distinguish drift from legitimate sustained effort: drift is a *flat* elevated signal (low variance), training pressure moves — require both "away from zero for the whole window" and "nearly constant" before flagging
 - [ ] Watch both directions (`|smoothed|`) — weather/elevation drift can go negative too, which PeakDetector never sees
 - [ ] Live tab: warning on the device card, reuse `BaselineDriftDialog` → the Recalibrate action already there
-- [ ] Exercises tab device selector: warning chip so drift is caught *between* games
+- [ ] Exercises tab device picker: per-device drift warning so it is caught *between* games (the tab has no persistent device selector anymore — devices are picked per launch)
 - [ ] Never interrupt a running game — recalibration mid-game is impossible (clears history, changes the pressure mapping); at most surface the warning at game over
 
 ---
@@ -160,7 +161,7 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 
 **Device selection:**
 - Use DevicePickerDialog in multi-select mode
-- Each selected device must have a paired user (for settings) and an assigned color (for visual identity)
+- A paired user is recommended (unpaired devices fall back to default ranges); devices without an assigned color fall back to preset colors
 
 ---
 
@@ -241,7 +242,7 @@ runs until everyone is out, then shows the ranked scoreboard.
 - Ball speed increases over time
 
 **Technical notes:**
-- Requires the players to pick exactly 2 devices in the device selection
+- Requires the players to pick exactly 2 devices in the device selection — the Exercises tab catalog already supports this (`minPlayers = 2, maxPlayers = 2` on the entry)
 - Ball physics: angle of reflection based on where ball hits paddle
 
 ---

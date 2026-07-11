@@ -163,11 +163,11 @@ fun EFuguApp(
         mutableIntStateOf(if (viewModel.savedDevices.value.isEmpty()) 2 else 0)
     }
     var activeGame by remember { mutableStateOf<String?>(null) }
-    var activeGameDeviceAddress by remember { mutableStateOf<String?>(null) }
+    // One address runs the single-player version, two or more the multiplayer one
     var activeGameDeviceAddresses by remember { mutableStateOf<List<String>>(emptyList()) }
     // Held here, not in ExercisesTab: the tab leaves composition during games
     // and tab switches, which would reset a locally remembered selection
-    var exerciseDeviceAddress by remember { mutableStateOf<String?>(null) }
+    var lastExerciseDeviceAddresses by remember { mutableStateOf<List<String>>(emptyList()) }
     var showLogs by remember { mutableStateOf(false) }
     var showUserDetail by remember { mutableStateOf<String?>(null) }
     var calibratingUserId by remember { mutableStateOf<String?>(null) }
@@ -296,9 +296,8 @@ fun EFuguApp(
         return
     }
 
-    // Multiplayer game routing
-    if ((activeGame == "multiplayer_reef" || activeGame == "multiplayer_feast") &&
-        activeGameDeviceAddresses.isNotEmpty() && selectedTab == 1) {
+    // Multiplayer game routing (two or more devices selected at launch)
+    if (activeGame != null && activeGameDeviceAddresses.size >= 2 && selectedTab == 1) {
         val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
         val onSaveSession = { session: org.hubik.openfugu.session.Session -> viewModel.saveSession(session) }
         BackHandler { onGameBack() }
@@ -319,12 +318,12 @@ fun EFuguApp(
         }
         if (playerInfos.size >= 2) {
             when (activeGame) {
-                "multiplayer_reef" -> MultiplayerFuguReefScreen(
+                "reef" -> MultiplayerFuguReefScreen(
                     players = playerInfos,
                     onBack = onGameBack,
                     onSessionSave = onSaveSession
                 )
-                "multiplayer_feast" -> MultiplayerFuguFeastScreen(
+                "feast" -> MultiplayerFuguFeastScreen(
                     players = playerInfos,
                     onBack = onGameBack,
                     onSessionSave = onSaveSession
@@ -346,10 +345,10 @@ fun EFuguApp(
     // When a game is active, render it full-screen (no top/bottom bars).
     // Only the device the game was started with may drive it — falling back to
     // "any connected device" would silently hijack another player's eFugu.
-    if (activeGame != null && selectedTab == 1) {
-        val connection = activeGameDeviceAddress?.let { connections[it] }
+    if (activeGame != null && activeGameDeviceAddresses.size == 1 && selectedTab == 1) {
+        val connection = connections[activeGameDeviceAddresses.first()]
         if (connection != null) {
-            BackHandler { activeGame = null; activeGameDeviceAddress = null }
+            BackHandler { activeGame = null; activeGameDeviceAddresses = emptyList() }
             val userProfile = viewModel.userForDevice(connection.address)
             val range = userProfile?.gamePressureRange ?: 40.0
             val negRange = userProfile?.gameNegativeRange ?: 0.0
@@ -358,7 +357,7 @@ fun EFuguApp(
             val deviceColor = savedDevice?.colorArgb?.let { Color(it.toInt()) }
             val devName = savedDevice?.displayName ?: connection.displayName
             val usrName = userProfile?.name
-            val onGameBack = { activeGame = null; activeGameDeviceAddress = null }
+            val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
             val onSaveSession = { session: org.hubik.openfugu.session.Session -> viewModel.saveSession(session) }
             when (activeGame) {
                 "reef" -> FuguReefScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
@@ -399,7 +398,7 @@ fun EFuguApp(
             LaunchedEffect(Unit) {
                 Toast.makeText(context, "Device disconnected — game ended", Toast.LENGTH_LONG).show()
                 activeGame = null
-                activeGameDeviceAddress = null
+                activeGameDeviceAddresses = emptyList()
             }
         }
     }
@@ -476,15 +475,11 @@ fun EFuguApp(
                 userProfiles = userProfiles,
                 deviceUserPairings = deviceUserPairings,
                 recentSessions = recentSessions,
-                selectedDeviceAddress = exerciseDeviceAddress,
-                onSelectDevice = { exerciseDeviceAddress = it },
-                onGameStart = { game, conn ->
-                    activeGame = game
-                    activeGameDeviceAddress = conn.address
-                },
-                onMultiplayerGameStart = { game, conns ->
+                lastUsedDeviceAddresses = lastExerciseDeviceAddresses,
+                onGameStart = { game, conns ->
                     activeGame = game
                     activeGameDeviceAddresses = conns.map { it.address }
+                    lastExerciseDeviceAddresses = conns.map { it.address }
                 },
                 onSessionClick = { sessionId -> viewingSessionId = sessionId },
                 onDeleteSession = { sessionId -> viewModel.deleteSession(sessionId) },
@@ -1440,14 +1435,30 @@ fun DevicePickerDialog(
     onPairUser: (deviceAddress: String, userId: String?) -> Unit,
     onDismiss: () -> Unit,
     multiSelect: Boolean = false,
-    onMultiSelect: (List<DeviceConnection>) -> Unit = {}
+    onMultiSelect: (List<DeviceConnection>) -> Unit = {},
+    preselected: Set<String> = emptySet(),
+    minSelect: Int = 1,
+    disabledReason: (SavedDevice) -> String? = { null }
 ) {
-    val connectedDevices = savedDevices.filter { device ->
-        connections[device.address]?.let { it.state.value is DeviceConnectionState.Connected } == true
+    // Collect connection states keyed by address so Compose tracks each slot
+    // independently — devices connecting or dropping while the dialog is open
+    // appear and disappear live
+    val connectionStates = mutableMapOf<String, DeviceConnectionState>()
+    connections.forEach { (address, conn) ->
+        key(address) {
+            connectionStates[address] = conn.state.collectAsState().value
+        }
+    }
+    val connectedDevices = savedDevices.filter {
+        connectionStates[it.address] is DeviceConnectionState.Connected
     }
 
-    // Multi-select state
-    var selectedAddresses by remember { mutableStateOf(setOf<String>()) }
+    // Multi-select state, seeded with the caller's remembered selection
+    var selectedAddresses by remember {
+        mutableStateOf(preselected.filter { addr ->
+            connectedDevices.any { it.address == addr && disabledReason(it) == null }
+        }.toSet())
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1456,13 +1467,15 @@ fun DevicePickerDialog(
             Column {
                 connectedDevices.forEach { device ->
                     val pairedUserId = deviceUserPairings.find { it.deviceAddress == device.address }?.userId
+                    val reason = disabledReason(device)
+                    val enabled = reason == null
                     val isSelected = if (multiSelect) device.address in selectedAddresses
                         else device.address == selectedAddress
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
+                            .clickable(enabled = enabled) {
                                 if (multiSelect) {
                                     selectedAddresses = if (device.address in selectedAddresses)
                                         selectedAddresses - device.address
@@ -1478,6 +1491,7 @@ fun DevicePickerDialog(
                         if (multiSelect) {
                             Checkbox(
                                 checked = isSelected,
+                                enabled = enabled,
                                 onCheckedChange = { checked ->
                                     selectedAddresses = if (checked)
                                         selectedAddresses + device.address
@@ -1488,6 +1502,7 @@ fun DevicePickerDialog(
                         } else {
                             RadioButton(
                                 selected = isSelected,
+                                enabled = enabled,
                                 onClick = { connections[device.address]?.let { onSelect(it) } }
                             )
                         }
@@ -1506,12 +1521,21 @@ fun DevicePickerDialog(
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            device.displayName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                device.displayName,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (enabled) MaterialTheme.colorScheme.tertiary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            if (reason != null) {
+                                Text(
+                                    reason,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                         // User assignment pill
                         var expanded by remember { mutableStateOf(false) }
                         val pairedUser = userProfiles.find { it.id == pairedUserId }
@@ -1570,7 +1594,7 @@ fun DevicePickerDialog(
                     onClick = {
                         onMultiSelect(validSelection.mapNotNull { addr -> connections[addr] })
                     },
-                    enabled = validSelection.size >= 2
+                    enabled = validSelection.size >= minSelect
                 ) {
                     Text("Start (${validSelection.size})")
                 }

@@ -12,7 +12,7 @@ The app is built with Kotlin, Jetpack Compose (Material 3), and targets modern A
 app/src/main/java/org/hubik/openfugu/
 ├── MainActivity.kt          — Activity, root composable, navigation routing
 ├── PressureChart.kt         — Unified chart (pause/zoom/scroll, overlays)
-├── ExercisesTab.kt          — Games + exercises listing, device selector
+├── ExercisesTab.kt          — Game/exercise catalog, per-launch device picker, history
 ├── UsersTab.kt              — User profile list, paired devices
 ├── LogsTab.kt               — Debug log display, copy/save
 │
@@ -167,6 +167,9 @@ All games use `calculateTargetY()` from GameUtils.kt. Normal mode: 0 hPa = botto
 
 ### No "active user" concept
 User context flows from device pairing. Games/exercises get their settings from `viewModel.userForDevice(address)` based on which device is selected. The Users tab shows a list — tapping a user opens their detail screen directly.
+
+### One card per game — players chosen at launch
+The Exercises tab has no separate multiplayer section. Each game/exercise is one catalog entry (`ExerciseEntry` in ExercisesTab.kt) declaring a player range; a future game needing, say, exactly two players just sets `minPlayers = 2, maxPlayers = 2`. With one device connected, tapping a card launches on it immediately (entries declaring `minPlayers > 1` open the picker instead). With several, a device picker opens per launch — checkboxes for multiplayer-capable games (picking one device runs the single-player version), radio buttons for single-player-only entries. The picker pre-checks the devices from the previous launch (state hoisted to `EFuguApp` so it survives games and tab switches). Routing keys off the selection count: `activeGameDeviceAddresses.size == 1` renders the single-player screen, `>= 2` the multiplayer one. Calibration-gated entries (Constant Equalization) grey out the card when the single connected device's user lacks calibration, or grey out individual devices inside the picker when several are connected.
 
 ## Persistence
 

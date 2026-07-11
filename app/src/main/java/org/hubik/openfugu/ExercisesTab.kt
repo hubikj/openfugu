@@ -6,11 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import kotlinx.coroutines.launch
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,10 +16,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.DeviceConnection
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.DeviceUserPairing
@@ -39,6 +35,133 @@ import java.util.Date
 import java.util.Locale
 import kotlin.math.sin
 
+// One entry per launchable game or exercise. Cards render from this list, and
+// the device picker follows the player range: entries with maxPlayers > 1 get
+// a checkbox picker (selecting one device runs the single-player version),
+// single-player-only entries get a radio picker. The icon receives the card's
+// enabled state so calibration-gated entries can draw greyed out.
+private class ExerciseEntry(
+    val id: String,
+    val title: String,
+    val description: String,
+    val minPlayers: Int = 1,
+    val maxPlayers: Int = 1,
+    val requiresMinEqCalibration: Boolean = false,
+    val icon: DrawScope.(enabled: Boolean) -> Unit
+)
+
+private val gameEntries = listOf(
+    ExerciseEntry(
+        id = "reef",
+        title = "Fugu Reef",
+        description = "Navigate through reef obstacles using equalization pressure",
+        maxPlayers = 7,
+        icon = { drawFugu(size.width / 2f, size.height / 2f, size.minDimension / 3f) }
+    ),
+    ExerciseEntry(
+        id = "feast",
+        title = "Fugu Feast",
+        description = "Eat smaller fish to grow, avoid bigger ones!",
+        maxPlayers = 7,
+        icon = { drawEnemyFish(size.width / 2f, size.height / 2f, size.minDimension / 3f, edible = false) }
+    ),
+    ExerciseEntry(
+        id = "cave",
+        title = "Fugu Cave",
+        description = "Navigate through narrowing cave passages",
+        icon = {
+            val w = size.width
+            val h = size.height
+            val caveColor = Color(0xFF4A3728)
+            val ceilPath = Path().apply {
+                moveTo(0f, 0f)
+                lineTo(0f, h * 0.28f)
+                lineTo(w * 0.3f, h * 0.22f)
+                lineTo(w * 0.6f, h * 0.32f)
+                lineTo(w, h * 0.25f)
+                lineTo(w, 0f)
+                close()
+            }
+            drawPath(ceilPath, caveColor)
+            val floorPath = Path().apply {
+                moveTo(0f, h)
+                lineTo(0f, h * 0.72f)
+                lineTo(w * 0.35f, h * 0.78f)
+                lineTo(w * 0.65f, h * 0.68f)
+                lineTo(w, h * 0.75f)
+                lineTo(w, h)
+                close()
+            }
+            drawPath(floorPath, caveColor)
+            drawFugu(w * 0.45f, h * 0.50f, size.minDimension / 6f)
+        }
+    ),
+    ExerciseEntry(
+        id = "flow",
+        title = "Fugu Flow",
+        description = "Follow a scrolling pressure pattern — rhythm and accuracy",
+        icon = {
+            val w = size.width
+            val h = size.height
+            // Mini sine wave with cursor dot
+            val curvePath = Path().apply {
+                for (i in 0..40) {
+                    val x = w * i / 40f
+                    val y = h * 0.5f - h * 0.3f * sin(x * 0.15f).toFloat()
+                    if (i == 0) moveTo(x, y) else lineTo(x, y)
+                }
+            }
+            drawPath(curvePath, Color(0xFF4FC3F7), style = Stroke(width = 2.5f))
+            // Cursor dot
+            val dotX = w * 0.5f
+            val dotY = h * 0.5f - h * 0.3f * sin(dotX * 0.15f).toFloat()
+            drawCircle(Color(0xFF66BB6A), 4f, Offset(dotX, dotY))
+        }
+    )
+)
+
+private val exerciseEntries = listOf(
+    ExerciseEntry(
+        id = "min_eq",
+        title = "Minimum Equalization",
+        description = "Find your minimum pressure needed to equalize",
+        icon = {
+            val w = size.width
+            val h = size.height
+            val path = Path().apply {
+                moveTo(w * 0.1f, h * 0.7f)
+                lineTo(w * 0.3f, h * 0.6f)
+                lineTo(w * 0.5f, h * 0.15f)
+                lineTo(w * 0.7f, h * 0.6f)
+                lineTo(w * 0.9f, h * 0.7f)
+            }
+            drawPath(path, AppColors.inRange, style = Stroke(width = 3f))
+        }
+    ),
+    ExerciseEntry(
+        id = "constant_eq",
+        title = "Constant Equalization",
+        description = "Hold steady equalization pressure within a target range",
+        requiresMinEqCalibration = true,
+        icon = { enabled ->
+            val w = size.width
+            val h = size.height
+            val rangeColor = if (enabled) AppColors.inRange else Color.Gray
+            drawRect(
+                rangeColor.copy(alpha = 0.2f),
+                topLeft = Offset(0f, h * 0.35f),
+                size = Size(w, h * 0.3f)
+            )
+            val linePath = Path().apply {
+                moveTo(0f, h * 0.55f)
+                cubicTo(w * 0.2f, h * 0.35f, w * 0.4f, h * 0.6f, w * 0.5f, h * 0.45f)
+                cubicTo(w * 0.6f, h * 0.35f, w * 0.8f, h * 0.55f, w, h * 0.5f)
+            }
+            drawPath(linePath, rangeColor, style = Stroke(width = 3f))
+        }
+    )
+)
+
 @Composable
 fun ExercisesTab(
     connections: Map<String, DeviceConnection>,
@@ -46,19 +169,16 @@ fun ExercisesTab(
     userProfiles: List<UserProfile>,
     deviceUserPairings: List<DeviceUserPairing>,
     recentSessions: List<SessionIndexEntry> = emptyList(),
-    // Selection is hoisted to the caller: this composable leaves composition
-    // whenever a game runs or another tab is shown, so local state would reset
-    selectedDeviceAddress: String? = null,
-    onSelectDevice: (String) -> Unit = {},
-    onGameStart: (String, DeviceConnection) -> Unit,
-    onMultiplayerGameStart: (String, List<DeviceConnection>) -> Unit = { _, _ -> },
+    // Hoisted to the caller: this composable leaves composition whenever a game
+    // runs or another tab is shown, so locally remembered state would reset
+    lastUsedDeviceAddresses: List<String> = emptyList(),
+    onGameStart: (String, List<DeviceConnection>) -> Unit,
     onSessionClick: (String) -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
     onPairUser: (String, String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
     // Collect connection states keyed by address so Compose tracks each slot independently
     val connectionStates = mutableMapOf<String, DeviceConnectionState>()
     connections.forEach { (address, conn) ->
@@ -68,13 +188,25 @@ fun ExercisesTab(
     }
     val connectedList = connections.values.filter { connectionStates[it.address] is DeviceConnectionState.Connected }
     val hasConnecting = connectionStates.values.any { it is DeviceConnectionState.Connecting }
-    var showDevicePicker by remember { mutableStateOf(false) }
 
-    // Show the chosen device if still connected, else fall back to the first
-    // connected one. The choice itself is never overwritten by the fallback,
-    // so it wins again when its device reconnects.
-    val selectedConnection = connectedList.find { it.address == selectedDeviceAddress }
-        ?: connectedList.firstOrNull()
+    // Which entry the device picker is open for (null = closed)
+    var pickerEntry by remember { mutableStateOf<ExerciseEntry?>(null) }
+
+    fun userFor(address: String): UserProfile? {
+        val userId = deviceUserPairings.find { it.deviceAddress == address }?.userId
+        return userProfiles.find { it.id == userId }
+    }
+
+    // One connected device: launch on it directly (unless the entry needs
+    // more players). Several: pick devices per launch.
+    fun launchEntry(entry: ExerciseEntry) {
+        val single = connectedList.singleOrNull()
+        if (single != null && entry.minPlayers == 1) {
+            onGameStart(entry.id, listOf(single))
+        } else {
+            pickerEntry = entry
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
     Column(
@@ -82,7 +214,7 @@ fun ExercisesTab(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        if (selectedConnection == null) {
+        if (connectedList.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -107,359 +239,39 @@ fun ExercisesTab(
                 }
             }
         } else { Column(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp)) {
-            // Device selector (show when multiple connected)
-            if (connectedList.size > 1) {
-                val selectedSaved = savedDevices.find { it.address == selectedConnection.address }
-                val pairedUserId = deviceUserPairings.find { it.deviceAddress == selectedConnection.address }?.userId
-                val pairedUser = userProfiles.find { it.id == pairedUserId }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { showDevicePicker = true }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (selectedSaved?.colorArgb != null) {
-                        Box(
-                            modifier = Modifier
-                                .size(14.dp)
-                                .background(Color(selectedSaved.colorArgb.toInt()), CircleShape)
-                        )
-                    } else {
-                        Icon(
-                            Icons.Filled.Bluetooth,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        selectedSaved?.displayName ?: selectedConnection.displayName,
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                    if (pairedUser != null) {
-                        Text(
-                            "  ·  ${pairedUser.name}",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                    }
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text("Change", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-            }
+            // With exactly one device connected the calibration requirement
+            // gates the card itself; with several devices the card stays
+            // enabled and the picker greys out uncalibrated devices instead.
+            val singleDevice = connectedList.singleOrNull()
+            val singleDeviceHasMinEq = singleDevice != null &&
+                userFor(singleDevice.address)?.minEqPressureHPa != null
 
             Text("Games", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onGameStart("reef", selectedConnection) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        drawFugu(size.width / 2f, size.height / 2f, size.minDimension / 3f)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Fugu Reef", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Navigate through reef obstacles using equalization pressure",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onGameStart("feast", selectedConnection) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        drawEnemyFish(size.width / 2f, size.height / 2f, size.minDimension / 3f, edible = false)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Fugu Feast", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Eat smaller fish to grow, avoid bigger ones!",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onGameStart("cave", selectedConnection) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val caveColor = Color(0xFF4A3728)
-                        val ceilPath = Path().apply {
-                            moveTo(0f, 0f)
-                            lineTo(0f, h * 0.28f)
-                            lineTo(w * 0.3f, h * 0.22f)
-                            lineTo(w * 0.6f, h * 0.32f)
-                            lineTo(w, h * 0.25f)
-                            lineTo(w, 0f)
-                            close()
-                        }
-                        drawPath(ceilPath, caveColor)
-                        val floorPath = Path().apply {
-                            moveTo(0f, h)
-                            lineTo(0f, h * 0.72f)
-                            lineTo(w * 0.35f, h * 0.78f)
-                            lineTo(w * 0.65f, h * 0.68f)
-                            lineTo(w, h * 0.75f)
-                            lineTo(w, h)
-                            close()
-                        }
-                        drawPath(floorPath, caveColor)
-                        drawFugu(w * 0.45f, h * 0.50f, size.minDimension / 6f)
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Fugu Cave", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Navigate through narrowing cave passages",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onGameStart("flow", selectedConnection) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        // Mini sine wave with cursor dot
-                        val curvePath = Path().apply {
-                            for (i in 0..40) {
-                                val x = w * i / 40f
-                                val y = h * 0.5f - h * 0.3f * sin(x * 0.15f).toFloat()
-                                if (i == 0) moveTo(x, y) else lineTo(x, y)
-                            }
-                        }
-                        drawPath(curvePath, Color(0xFF4FC3F7), style = Stroke(width = 2.5f))
-                        // Cursor dot
-                        val dotX = w * 0.5f
-                        val dotY = h * 0.5f - h * 0.3f * sin(dotX * 0.15f).toFloat()
-                        drawCircle(Color(0xFF66BB6A), 4f, Offset(dotX, dotY))
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Fugu Flow", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Follow a scrolling pressure pattern — rhythm and accuracy",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // Multiplayer section
-            if (connectedList.size >= 2) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Multiplayer", style = MaterialTheme.typography.titleMedium)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Which multiplayer game the device picker is open for (null = closed)
-                var multiplayerPickerGame by remember { mutableStateOf<String?>(null) }
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { multiplayerPickerGame = "multiplayer_reef" }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Canvas(modifier = Modifier.size(48.dp)) {
-                            val r = size.minDimension / 5f
-                            drawFugu(size.width * 0.3f, size.height * 0.45f, r, bodyColor = Color(0xFFE53935))
-                            drawFugu(size.width * 0.7f, size.height * 0.55f, r, bodyColor = Color(0xFF1E88E5))
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Multiplayer Fugu Reef", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "Race through the reef — last fugu standing wins!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { multiplayerPickerGame = "multiplayer_feast" }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Canvas(modifier = Modifier.size(48.dp)) {
-                            drawFugu(size.width * 0.35f, size.height * 0.4f, size.minDimension / 3.6f, bodyColor = Color(0xFF1E88E5))
-                            drawFugu(size.width * 0.75f, size.height * 0.7f, size.minDimension / 7f, bodyColor = Color(0xFFE53935))
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Multiplayer Fugu Feast", style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                "Compete for the same fish — most fish eaten wins!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                multiplayerPickerGame?.let { game ->
-                    DevicePickerDialog(
-                        connections = connections,
-                        savedDevices = savedDevices,
-                        userProfiles = userProfiles,
-                        deviceUserPairings = deviceUserPairings,
-                        multiSelect = true,
-                        onMultiSelect = { selected ->
-                            multiplayerPickerGame = null
-                            onMultiplayerGameStart(game, selected)
-                        },
-                        onPairUser = onPairUser,
-                        onDismiss = { multiplayerPickerGame = null }
-                    )
-                }
+            gameEntries.forEachIndexed { index, entry ->
+                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                ExerciseCard(
+                    entry = entry,
+                    enabled = true,
+                    description = entry.description,
+                    onClick = { launchEntry(entry) }
+                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Exercises section
-            val selectedPairedUserId = deviceUserPairings.find { it.deviceAddress == selectedConnection.address }?.userId
-            val selectedUserProfile = userProfiles.find { it.id == selectedPairedUserId }
-            val hasMinEq = selectedUserProfile?.minEqPressureHPa != null
-
             Text("Exercises", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Min EQ Practice
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onGameStart("min_eq", selectedConnection) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val path = Path().apply {
-                            moveTo(w * 0.1f, h * 0.7f)
-                            lineTo(w * 0.3f, h * 0.6f)
-                            lineTo(w * 0.5f, h * 0.15f)
-                            lineTo(w * 0.7f, h * 0.6f)
-                            lineTo(w * 0.9f, h * 0.7f)
-                        }
-                        drawPath(path, AppColors.inRange, style = Stroke(width = 3f))
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Minimum Equalization", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            "Find your minimum pressure needed to equalize",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Constant EQ
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (hasMinEq) Modifier.clickable { onGameStart("constant_eq", selectedConnection) }
-                        else Modifier
-                    ),
-                colors = if (hasMinEq) CardDefaults.cardColors()
-                    else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Canvas(modifier = Modifier.size(48.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val rangeColor = if (hasMinEq) AppColors.inRange else Color.Gray
-                        drawRect(
-                            rangeColor.copy(alpha = 0.2f),
-                            topLeft = Offset(0f, h * 0.35f),
-                            size = Size(w, h * 0.3f)
-                        )
-                        val linePath = Path().apply {
-                            moveTo(0f, h * 0.55f)
-                            cubicTo(w * 0.2f, h * 0.35f, w * 0.4f, h * 0.6f, w * 0.5f, h * 0.45f)
-                            cubicTo(w * 0.6f, h * 0.35f, w * 0.8f, h * 0.55f, w, h * 0.5f)
-                        }
-                        drawPath(linePath, rangeColor, style = Stroke(width = 3f))
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Constant Equalization", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            if (hasMinEq) "Hold steady equalization pressure within a target range"
-                            else "Requires minimum equalization calibration first",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            exerciseEntries.forEachIndexed { index, entry ->
+                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                val enabled = !entry.requiresMinEqCalibration ||
+                    singleDevice == null || singleDeviceHasMinEq
+                ExerciseCard(
+                    entry = entry,
+                    enabled = enabled,
+                    description = if (enabled) entry.description
+                        else "Requires minimum equalization calibration first",
+                    onClick = { launchEntry(entry) }
+                )
             }
         } }
 
@@ -587,20 +399,76 @@ fun ExercisesTab(
     )
     } // Box
 
-    if (showDevicePicker) {
+    pickerEntry?.let { entry ->
         DevicePickerDialog(
             connections = connections,
             savedDevices = savedDevices,
             userProfiles = userProfiles,
             deviceUserPairings = deviceUserPairings,
-            selectedAddress = selectedConnection?.address,
+            multiSelect = entry.maxPlayers > 1,
+            minSelect = entry.minPlayers,
+            preselected = lastUsedDeviceAddresses.toSet(),
             onSelect = { conn ->
-                onSelectDevice(conn.address)
-                showDevicePicker = false
+                pickerEntry = null
+                onGameStart(entry.id, listOf(conn))
+            },
+            onMultiSelect = { selected ->
+                pickerEntry = null
+                onGameStart(entry.id, selected)
+            },
+            disabledReason = { device ->
+                if (entry.requiresMinEqCalibration && userFor(device.address)?.minEqPressureHPa == null)
+                    "Requires minimum equalization calibration"
+                else null
             },
             onPairUser = onPairUser,
-            onDismiss = { showDevicePicker = false }
+            onDismiss = { pickerEntry = null }
         )
+    }
+}
+
+@Composable
+private fun ExerciseCard(
+    entry: ExerciseEntry,
+    enabled: Boolean,
+    description: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (enabled) Modifier.clickable(onClick = onClick)
+                else Modifier
+            ),
+        colors = if (enabled) CardDefaults.cardColors()
+            else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Canvas(modifier = Modifier.size(48.dp)) { entry.icon(this, enabled) }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(entry.title, style = MaterialTheme.typography.titleSmall)
+                    if (entry.maxPlayers > 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            "1–${entry.maxPlayers} players",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 
