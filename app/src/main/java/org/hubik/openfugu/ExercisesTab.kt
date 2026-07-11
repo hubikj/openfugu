@@ -46,6 +46,10 @@ fun ExercisesTab(
     userProfiles: List<UserProfile>,
     deviceUserPairings: List<DeviceUserPairing>,
     recentSessions: List<SessionIndexEntry> = emptyList(),
+    // Selection is hoisted to the caller: this composable leaves composition
+    // whenever a game runs or another tab is shown, so local state would reset
+    selectedDeviceAddress: String? = null,
+    onSelectDevice: (String) -> Unit = {},
     onGameStart: (String, DeviceConnection) -> Unit,
     onMultiplayerGameStart: (String, List<DeviceConnection>) -> Unit = { _, _ -> },
     onSessionClick: (String) -> Unit = {},
@@ -64,16 +68,13 @@ fun ExercisesTab(
     }
     val connectedList = connections.values.filter { connectionStates[it.address] is DeviceConnectionState.Connected }
     val hasConnecting = connectionStates.values.any { it is DeviceConnectionState.Connecting }
-    var selectedAddress by remember { mutableStateOf<String?>(null) }
     var showDevicePicker by remember { mutableStateOf(false) }
 
-    // Auto-select: pick previously selected if still connected, else first connected
-    val selectedConnection = connectedList.find { it.address == selectedAddress }
+    // Show the chosen device if still connected, else fall back to the first
+    // connected one. The choice itself is never overwritten by the fallback,
+    // so it wins again when its device reconnects.
+    val selectedConnection = connectedList.find { it.address == selectedDeviceAddress }
         ?: connectedList.firstOrNull()
-    // Keep selectedAddress in sync
-    LaunchedEffect(selectedConnection?.address) {
-        selectedAddress = selectedConnection?.address
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
     Column(
@@ -592,9 +593,9 @@ fun ExercisesTab(
             savedDevices = savedDevices,
             userProfiles = userProfiles,
             deviceUserPairings = deviceUserPairings,
-            selectedAddress = selectedAddress,
+            selectedAddress = selectedConnection?.address,
             onSelect = { conn ->
-                selectedAddress = conn.address
+                onSelectDevice(conn.address)
                 showDevicePicker = false
             },
             onPairUser = onPairUser,

@@ -165,6 +165,9 @@ fun EFuguApp(
     var activeGame by remember { mutableStateOf<String?>(null) }
     var activeGameDeviceAddress by remember { mutableStateOf<String?>(null) }
     var activeGameDeviceAddresses by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Held here, not in ExercisesTab: the tab leaves composition during games
+    // and tab switches, which would reset a locally remembered selection
+    var exerciseDeviceAddress by remember { mutableStateOf<String?>(null) }
     var showLogs by remember { mutableStateOf(false) }
     var showUserDetail by remember { mutableStateOf<String?>(null) }
     var calibratingUserId by remember { mutableStateOf<String?>(null) }
@@ -473,6 +476,8 @@ fun EFuguApp(
                 userProfiles = userProfiles,
                 deviceUserPairings = deviceUserPairings,
                 recentSessions = recentSessions,
+                selectedDeviceAddress = exerciseDeviceAddress,
+                onSelectDevice = { exerciseDeviceAddress = it },
                 onGameStart = { game, conn ->
                     activeGame = game
                     activeGameDeviceAddress = conn.address
