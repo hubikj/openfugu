@@ -173,10 +173,11 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 - Contested food: when several players overlap the same prey in one frame, the **closest mouth**
   eats it — precision decides ties, not iteration order.
 - Shared-screen coloring: enemy type (prey/predator) is **fixed at spawn** relative to the
-  players alive at that moment — prey smaller than the smallest alive player (≤ 0.85×), predators
-  bigger than the biggest (≥ 1.15×). Collisions resolve by that type, not by live size
-  comparison, so green always means edible and red always means lethal for everyone, even after
-  players grow past an on-screen fish.
+  players alive at that moment — prey up to the smallest alive player's size (safe with no
+  margin, since players only grow), predators bigger than the biggest (≥ 1.15×, margin because
+  players grow toward them). Collisions resolve by that type, not by live size comparison, so
+  green always means edible and red always means lethal for everyone, even after players grow
+  past an on-screen fish.
 - Size balance: a bigger fugu has longer eating reach, but its death hitbox against predators
   and rocks grows just as fast, and predators are sized off the leader — growth is an
   advantage with teeth, not a runaway win.

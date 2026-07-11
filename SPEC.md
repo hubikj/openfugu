@@ -231,7 +231,8 @@ Competitive Feast on one shared screen; all fugus swim at the same x
 (25% of width), each driven by its own device with **its own user's
 ranges** (§2). Because every player sees the same fish, a fish's color
 must mean the same thing for everyone: enemy type is **fixed at spawn** —
-prey (green) spawn at ≤ 0.85 × the *smallest* alive player's radius,
+prey (green) spawn between 8 dp and the *smallest* alive player's radius
+(no margin needed: players only grow, so that bar can never be undercut),
 predators (red) at ≥ 1.15 × the *largest* alive player's radius (capped
 at 70 dp; players cap at 50 dp, so the cap cannot invert the relation).
 Collisions resolve by that spawn type, never by live size comparison:

@@ -40,10 +40,10 @@ private const val ROCK_MIN_HEIGHT_DP = 60f
 private const val ROCK_MAX_HEIGHT_DP = 140f
 
 // Everyone shares one screen, so a fish's color must mean the same thing for
-// every player: prey spawn smaller than the smallest alive player, predators
-// larger than the largest alive player. These margins keep the size relation
-// visually obvious even as players grow mid-flight.
-private const val PREY_MAX_FRACTION = 0.85f      // of the smallest alive player's radius
+// every player: prey spawn no bigger than the smallest alive player (needs no
+// margin — players only grow, so that bar can never be undercut), predators
+// larger than the largest alive player, with a margin because players grow
+// toward them mid-flight.
 private const val PREDATOR_MIN_FACTOR = 1.15f    // of the largest alive player's radius
 
 private val BgColor = Color(0xFF0D1B2A)
@@ -226,10 +226,9 @@ fun MultiplayerFuguFeastScreen(
                         (maxAliveRadius * (PREDATOR_MIN_FACTOR + Math.random().toFloat() * 0.5f))
                             .coerceAtMost(ENEMY_MAX_RADIUS_DP)
                     } else {
-                        // Smaller than every alive player
-                        val upper = (minAliveRadius * PREY_MAX_FRACTION)
-                            .coerceAtLeast(ENEMY_MIN_RADIUS_DP + 2f)
-                        ENEMY_MIN_RADIUS_DP + Math.random().toFloat() * (upper - ENEMY_MIN_RADIUS_DP)
+                        // Up to the smallest alive player's size, as in single player
+                        ENEMY_MIN_RADIUS_DP + Math.random().toFloat() *
+                                (minAliveRadius - ENEMY_MIN_RADIUS_DP)
                     }
 
                     val y = 0.08f + Math.random().toFloat() * 0.76f  // avoid seabed
