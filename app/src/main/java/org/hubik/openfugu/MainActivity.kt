@@ -71,6 +71,7 @@ import org.hubik.openfugu.game.FuguCaveScreen
 import org.hubik.openfugu.game.FuguFeastScreen
 import org.hubik.openfugu.game.FuguFlowScreen
 import org.hubik.openfugu.game.FuguReefScreen
+import org.hubik.openfugu.game.MultiplayerFuguFeastScreen
 import org.hubik.openfugu.game.MultiplayerFuguReefScreen
 import org.hubik.openfugu.game.MultiplayerPlayerInfo
 import org.hubik.openfugu.game.drawEnemyFish
@@ -293,7 +294,8 @@ fun EFuguApp(
     }
 
     // Multiplayer game routing
-    if (activeGame == "multiplayer_reef" && activeGameDeviceAddresses.isNotEmpty() && selectedTab == 1) {
+    if ((activeGame == "multiplayer_reef" || activeGame == "multiplayer_feast") &&
+        activeGameDeviceAddresses.isNotEmpty() && selectedTab == 1) {
         val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
         val onSaveSession = { session: org.hubik.openfugu.session.Session -> viewModel.saveSession(session) }
         BackHandler { onGameBack() }
@@ -313,11 +315,18 @@ fun EFuguApp(
             )
         }
         if (playerInfos.size >= 2) {
-            MultiplayerFuguReefScreen(
-                players = playerInfos,
-                onBack = onGameBack,
-                onSessionSave = onSaveSession
-            )
+            when (activeGame) {
+                "multiplayer_reef" -> MultiplayerFuguReefScreen(
+                    players = playerInfos,
+                    onBack = onGameBack,
+                    onSessionSave = onSaveSession
+                )
+                "multiplayer_feast" -> MultiplayerFuguFeastScreen(
+                    players = playerInfos,
+                    onBack = onGameBack,
+                    onSessionSave = onSaveSession
+                )
+            }
             return
         } else {
             // Too few players left. Reset in an effect (never as a side effect

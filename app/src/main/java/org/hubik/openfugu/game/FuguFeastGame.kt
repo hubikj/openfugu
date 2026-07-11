@@ -253,25 +253,11 @@ fun FuguFeastScreen(
                     }
                 }
 
-                // Check rock collisions — approximate mound shape with
-                // width that narrows toward the top, matching the drawn path
+                // Check rock collisions
                 val seabedYDp = 0.88f * screenHDp
                 rocks.forEach { rock ->
-                    val rockTopDp = seabedYDp - rock.height
-                    val rockCenterX = rock.x + rock.width * 0.5f
-
-                    // How far up the rock is the fish? 0=base, 1=peak
-                    val heightFrac = ((seabedYDp - fishYDp) / rock.height).coerceIn(0f, 1f)
-                    // Rock narrows toward top: full width at base, ~30% at peak
-                    val widthAtFishY = rock.width * (1f - heightFrac * 0.7f) * 0.45f
-                    val rockLeftDp = rockCenterX - widthAtFishY
-                    val rockRightDp = rockCenterX + widthAtFishY
-
-                    val closestX = fishXDp.coerceIn(rockLeftDp, rockRightDp)
-                    val closestY = fishYDp.coerceIn(rockTopDp, seabedYDp)
-                    val dx = fishXDp - closestX
-                    val dy = fishYDp - closestY
-                    if (sqrt(dx * dx + dy * dy) < playerRadius * 0.7f) {
+                    if (feastRockHit(fishXDp, fishYDp, playerRadius,
+                            rock.x, rock.width, rock.height, seabedYDp)) {
                         collided = true
                     }
                 }
@@ -347,30 +333,9 @@ fun FuguFeastScreen(
                         val rockLeftPx = rock.x * dpToPx
                         val rockWidthPx = rock.width * dpToPx
                         val rockHeightPx = rock.height * dpToPx
-                        val rockTopPx = seabedY - rockHeightPx  // grow up from seabed
 
                         if (rockLeftPx + rockWidthPx > 0f && rockLeftPx < w) {
-                            // Wide, natural rock mound — extends to screen bottom to avoid floating
-                            val rockPath = Path().apply {
-                                moveTo(rockLeftPx, h)
-                                lineTo(rockLeftPx, rockTopPx + rockHeightPx * 0.4f)
-                                lineTo(rockLeftPx + rockWidthPx * 0.15f, rockTopPx + rockHeightPx * 0.15f)
-                                lineTo(rockLeftPx + rockWidthPx * 0.35f, rockTopPx)
-                                lineTo(rockLeftPx + rockWidthPx * 0.55f, rockTopPx + rockHeightPx * 0.08f)
-                                lineTo(rockLeftPx + rockWidthPx * 0.75f, rockTopPx + rockHeightPx * 0.05f)
-                                lineTo(rockLeftPx + rockWidthPx * 0.9f, rockTopPx + rockHeightPx * 0.25f)
-                                lineTo(rockLeftPx + rockWidthPx, h)
-                                close()
-                            }
-                            drawPath(rockPath, RockColor)
-                            // Highlight ridge
-                            val edgePath = Path().apply {
-                                moveTo(rockLeftPx + rockWidthPx * 0.15f, rockTopPx + rockHeightPx * 0.15f)
-                                lineTo(rockLeftPx + rockWidthPx * 0.35f, rockTopPx)
-                                lineTo(rockLeftPx + rockWidthPx * 0.55f, rockTopPx + rockHeightPx * 0.08f)
-                                lineTo(rockLeftPx + rockWidthPx * 0.75f, rockTopPx + rockHeightPx * 0.05f)
-                            }
-                            drawPath(edgePath, RockEdge, style = Stroke(width = 2.5f))
+                            drawFeastRock(rockLeftPx, rockWidthPx, rockHeightPx, seabedY, h)
                         }
                     }
                 }
@@ -459,14 +424,68 @@ fun FuguFeastScreen(
 }
 
 // =============================================================================
+// Shared Feast geometry (used by single-player and multiplayer)
+// =============================================================================
+
+/**
+ * Circle-vs-rock collision for the mound-shaped Feast rock, in dp space.
+ * Approximates the drawn mound: full width at the base, narrowing to ~30%
+ * toward the peak — must stay in sync with [drawFeastRock].
+ */
+fun feastRockHit(
+    fishXDp: Float, fishYDp: Float, playerRadiusDp: Float,
+    rockX: Float, rockWidth: Float, rockHeight: Float, seabedYDp: Float
+): Boolean {
+    val rockTopDp = seabedYDp - rockHeight
+    val rockCenterX = rockX + rockWidth * 0.5f
+
+    // How far up the rock is the fish? 0=base, 1=peak
+    val heightFrac = ((seabedYDp - fishYDp) / rockHeight).coerceIn(0f, 1f)
+    val widthAtFishY = rockWidth * (1f - heightFrac * 0.7f) * 0.45f
+    val rockLeftDp = rockCenterX - widthAtFishY
+    val rockRightDp = rockCenterX + widthAtFishY
+
+    val closestX = fishXDp.coerceIn(rockLeftDp, rockRightDp)
+    val closestY = fishYDp.coerceIn(rockTopDp, seabedYDp)
+    val dx = fishXDp - closestX
+    val dy = fishYDp - closestY
+    return sqrt(dx * dx + dy * dy) < playerRadiusDp * 0.7f
+}
+
+/** Draw the mound-shaped Feast rock — extends to the screen bottom so it never floats. Px space. */
+fun DrawScope.drawFeastRock(rockLeftPx: Float, rockWidthPx: Float, rockHeightPx: Float, seabedY: Float, canvasHeight: Float) {
+    val rockTopPx = seabedY - rockHeightPx  // grow up from seabed
+    val rockPath = Path().apply {
+        moveTo(rockLeftPx, canvasHeight)
+        lineTo(rockLeftPx, rockTopPx + rockHeightPx * 0.4f)
+        lineTo(rockLeftPx + rockWidthPx * 0.15f, rockTopPx + rockHeightPx * 0.15f)
+        lineTo(rockLeftPx + rockWidthPx * 0.35f, rockTopPx)
+        lineTo(rockLeftPx + rockWidthPx * 0.55f, rockTopPx + rockHeightPx * 0.08f)
+        lineTo(rockLeftPx + rockWidthPx * 0.75f, rockTopPx + rockHeightPx * 0.05f)
+        lineTo(rockLeftPx + rockWidthPx * 0.9f, rockTopPx + rockHeightPx * 0.25f)
+        lineTo(rockLeftPx + rockWidthPx, canvasHeight)
+        close()
+    }
+    drawPath(rockPath, RockColor)
+    // Highlight ridge
+    val edgePath = Path().apply {
+        moveTo(rockLeftPx + rockWidthPx * 0.15f, rockTopPx + rockHeightPx * 0.15f)
+        lineTo(rockLeftPx + rockWidthPx * 0.35f, rockTopPx)
+        lineTo(rockLeftPx + rockWidthPx * 0.55f, rockTopPx + rockHeightPx * 0.08f)
+        lineTo(rockLeftPx + rockWidthPx * 0.75f, rockTopPx + rockHeightPx * 0.05f)
+    }
+    drawPath(edgePath, RockEdge, style = Stroke(width = 2.5f))
+}
+
+// =============================================================================
 // Drawing helpers
 // =============================================================================
 
-/** Draw an enemy fish — green if smaller (edible), red if bigger (dangerous). Faces left.
+/** Draw an enemy fish — green if edible, red if dangerous. Faces left.
  *  Spiky dorsal fins and angry open mouth distinguish them from the friendly fugu. */
-fun DrawScope.drawEnemyFish(cx: Float, cy: Float, radius: Float, isSmaller: Boolean) {
-    val bodyColor = if (isSmaller) EnemySmallColor else EnemyBigColor
-    val finColor = if (isSmaller) EnemySmallFin else EnemyBigFin
+fun DrawScope.drawEnemyFish(cx: Float, cy: Float, radius: Float, edible: Boolean) {
+    val bodyColor = if (edible) EnemySmallColor else EnemyBigColor
+    val finColor = if (edible) EnemySmallFin else EnemyBigFin
 
     // Draw into a layer so BlendMode.Clear makes a true transparent cutout
     drawContext.canvas.saveLayer(

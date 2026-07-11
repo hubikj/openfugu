@@ -7,7 +7,7 @@ import java.util.UUID
 enum class SessionType {
     MIN_EQ, CONSTANT_EQ,
     REEF_GAME, FEAST_GAME, CAVE_GAME, FLOW_GAME,
-    MULTIPLAYER_REEF_GAME
+    MULTIPLAYER_REEF_GAME, MULTIPLAYER_FEAST_GAME
 }
 
 sealed class Session {

@@ -80,23 +80,27 @@ class SessionJsonTest {
 
     @Test
     fun `multiplayer session round-trips including per-player traces`() {
-        val session = Session.MultiplayerGameSession(
-            id = "id-mp", type = SessionType.MULTIPLAYER_REEF_GAME,
-            timestamp = 42L, durationMs = 45_000L, pressureTrace = trace,
-            players = listOf(
-                Session.PlayerResult(
-                    deviceName = "eFugu A", userName = "Winner", colorArgb = 0xFFAA0000,
-                    score = 20, rank = 1, pressureTrace = trace,
-                    pressureRange = 40.0, negativeRange = 0.0, expertMode = false
-                ),
-                Session.PlayerResult(
-                    deviceName = "eFugu B", userName = null, colorArgb = null,
-                    score = 12, rank = 2, pressureTrace = emptyList(),
-                    pressureRange = 28.0, negativeRange = 14.0, expertMode = true
+        listOf(
+            SessionType.MULTIPLAYER_REEF_GAME, SessionType.MULTIPLAYER_FEAST_GAME
+        ).forEach { type ->
+            val session = Session.MultiplayerGameSession(
+                id = "id-mp-$type", type = type,
+                timestamp = 42L, durationMs = 45_000L, pressureTrace = trace,
+                players = listOf(
+                    Session.PlayerResult(
+                        deviceName = "eFugu A", userName = "Winner", colorArgb = 0xFFAA0000,
+                        score = 20, rank = 1, pressureTrace = trace,
+                        pressureRange = 40.0, negativeRange = 0.0, expertMode = false
+                    ),
+                    Session.PlayerResult(
+                        deviceName = "eFugu B", userName = null, colorArgb = null,
+                        score = 12, rank = 2, pressureTrace = emptyList(),
+                        pressureRange = 28.0, negativeRange = 14.0, expertMode = true
+                    )
                 )
             )
-        )
-        assertEquals(session, roundTrip(session))
+            assertEquals(session, roundTrip(session))
+        }
     }
 
     @Test

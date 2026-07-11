@@ -187,10 +187,12 @@ Expert mode (requires `negativeRange > 0`, else fall back to normal):
 
 Player position is exponentially smoothed toward the target:
 `y += (targetY − y) × 10 × dt`, with frame `dt` clamped to 0.05 s.
-All games gate the start on an established baseline and live pressure, end
-with a notice if their device disconnects, and auto-save a session at game
-over. Distances below are in dp on a portrait phone screen; ports should
-treat them as proportions of a ~400 dp-wide, ~800 dp-tall play area.
+All games gate the start on an established baseline and live pressure and
+auto-save a session at game over. Single-player games end with a notice if
+the device disconnects; in multiplayer games a disconnect eliminates only
+that player and the game continues. Distances below are in dp on a
+portrait phone screen; ports should treat them as proportions of a
+~400 dp-wide, ~800 dp-tall play area.
 
 ### 6.2 Fugu Reef (single player)
 
@@ -211,12 +213,40 @@ results ranked by score.
 ### 6.4 Fugu Feast
 
 Eat smaller fish, avoid bigger ones and rocks. Base speed 140 dp/s ×
-`(1 + eaten × 0.003)`; player starts at radius 18 dp, +1.5 per fish eaten,
-capped at 50; enemies 8–70 dp spawning every 0.6 s (rocks every 3 s).
-Edible iff enemy radius ≤ player radius; score = fish eaten. Growth is a
-*consequence* of score, never of pressure.
+`(1 + eaten × 0.003)` (= the speed multiplier); player starts at radius
+18 dp, +1.5 per fish eaten, capped at 50; enemies 8–70 dp spawning every
+0.6 s ÷ speed multiplier; predator chance
+`min(0.3 + 0.005 × score, 0.6)`. Fish-vs-fish contact when centers are
+closer than `0.7 × (player radius + enemy radius)`; edible iff enemy
+radius ≤ player radius; score = fish eaten. Growth is a *consequence* of
+score, never of pressure. Rocks: mound on the seabed (at 88% of screen
+height) every 3 s, 60–140 dp tall, 96–224 dp wide; the hitbox narrows
+with height — half-width at the fish's altitude is
+`width × (1 − 0.7 × heightFraction) × 0.45` — and the player collides
+when within `0.7 × player radius` of it.
 
-### 6.5 Fugu Cave
+### 6.5 Multiplayer Fugu Feast (2–7 players)
+
+Competitive Feast on one shared screen; all fugus swim at the same x
+(25% of width), each driven by its own device with **its own user's
+ranges** (§2). Because every player sees the same fish, a fish's color
+must mean the same thing for everyone: enemy type is **fixed at spawn** —
+prey (green) spawn at ≤ 0.85 × the *smallest* alive player's radius,
+predators (red) at ≥ 1.15 × the *largest* alive player's radius (capped
+at 70 dp; players cap at 50 dp, so the cap cannot invert the relation).
+Collisions resolve by that spawn type, never by live size comparison:
+prey are edible by **any** player, predators eliminate **any** player —
+so the coloring stays truthful even after players grow past an on-screen
+fish. Prey are contested: when several players overlap one fish in the
+same frame, the closest mouth eats it (contact threshold, growth, and
+predator chance as §6.4). Rocks eliminate on touch (§6.4 geometry).
+Speed and predator probability ramp with the *highest alive* score;
+enemies spawn faster with more alive players: interval = 0.6 s ÷
+(speed multiplier × (1 + 0.2 × (alive − 1))). A disconnected player is
+eliminated. Eliminated fugus fade but stay visible; game ends when all
+are out; results ranked by fish eaten.
+
+### 6.6 Fugu Cave
 
 Procedurally generated cave corridor; survive as long as possible.
 Speed 150 dp/s × `(1 + distance × 0.0008)`; segments every 50 dp; gap
@@ -224,7 +254,7 @@ narrows from 0.22 to 0.15 of screen height at 0.00006 per distance point;
 wall drift ≤ 0.14 per segment with 0.35 momentum bias; 8 safe starting
 segments. Score = distance.
 
-### 6.6 Fugu Flow (rhythm)
+### 6.7 Fugu Flow (rhythm)
 
 A target pressure curve scrolls right-to-left; keep your cursor on it.
 Cursor at x = 30% of width; 3 s look-ahead, 2 s look-behind, 3 s grace

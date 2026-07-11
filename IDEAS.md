@@ -164,16 +164,25 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 
 ---
 
-### Multiplayer Fugu Feast
+### Multiplayer Fugu Feast [x]
 **Goal:** Competitive eating — multiple players compete for food fish on the same screen.
 
-**Challenges:**
-- All fugu movement is vertical only (pressure-controlled) — horizontal position needs a different approach
-- Option A: each player's fugu is in a fixed horizontal lane
-- Option B: fugus share the same vertical space but are offset slightly horizontally for visual clarity
-- Both options A and B are not suitable, because it gives the front fish an unfair advantage. All will have to be in the same horizontal position. Since our collision detection is using circles/ellipses, it should still work fine, because the most precisely positioned fish will get the food first? In case the position is exactly the same, then what do we do?
+**How it was resolved (implemented in `MultiplayerFuguFeastGame.kt`):**
+- All fugus share the same horizontal position (25% of width, like single-player) — no lanes,
+  no offset, so no front-fish advantage. Collision stays circle-based.
+- Contested food: when several players overlap the same prey in one frame, the **closest mouth**
+  eats it — precision decides ties, not iteration order.
+- Shared-screen coloring: enemy type (prey/predator) is **fixed at spawn** relative to the
+  players alive at that moment — prey smaller than the smallest alive player (≤ 0.85×), predators
+  bigger than the biggest (≥ 1.15×). Collisions resolve by that type, not by live size
+  comparison, so green always means edible and red always means lethal for everyone, even after
+  players grow past an on-screen fish.
+- Size balance: a bigger fugu has longer eating reach, but its death hitbox against predators
+  and rocks grows just as fast, and predators are sized off the leader — growth is an
+  advantage with teeth, not a runaway win.
 
-**Scoring:** most fish eaten wins. Eating a predator eliminates that player.
+**Scoring:** most fish eaten wins. Touching a predator or rock eliminates that player; the game
+runs until everyone is out, then shows the ranked scoreboard.
 
 ---
 

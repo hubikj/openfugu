@@ -189,7 +189,7 @@ fun ExercisesTab(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Canvas(modifier = Modifier.size(48.dp)) {
-                        drawEnemyFish(size.width / 2f, size.height / 2f, size.minDimension / 3f, isSmaller = false)
+                        drawEnemyFish(size.width / 2f, size.height / 2f, size.minDimension / 3f, edible = false)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -298,12 +298,13 @@ fun ExercisesTab(
                 Text("Multiplayer", style = MaterialTheme.typography.titleMedium)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                var showMultiplayerPicker by remember { mutableStateOf(false) }
+                // Which multiplayer game the device picker is open for (null = closed)
+                var multiplayerPickerGame by remember { mutableStateOf<String?>(null) }
 
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { showMultiplayerPicker = true }
+                        .clickable { multiplayerPickerGame = "multiplayer_reef" }
                 ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
@@ -326,7 +327,34 @@ fun ExercisesTab(
                     }
                 }
 
-                if (showMultiplayerPicker) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { multiplayerPickerGame = "multiplayer_feast" }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Canvas(modifier = Modifier.size(48.dp)) {
+                            drawFugu(size.width * 0.35f, size.height * 0.4f, size.minDimension / 3.6f, bodyColor = Color(0xFF1E88E5))
+                            drawFugu(size.width * 0.75f, size.height * 0.7f, size.minDimension / 7f, bodyColor = Color(0xFFE53935))
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Multiplayer Fugu Feast", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "Compete for the same fish — most fish eaten wins!",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                multiplayerPickerGame?.let { game ->
                     DevicePickerDialog(
                         connections = connections,
                         savedDevices = savedDevices,
@@ -334,11 +362,11 @@ fun ExercisesTab(
                         deviceUserPairings = deviceUserPairings,
                         multiSelect = true,
                         onMultiSelect = { selected ->
-                            showMultiplayerPicker = false
-                            onMultiplayerGameStart("multiplayer_reef", selected)
+                            multiplayerPickerGame = null
+                            onMultiplayerGameStart(game, selected)
                         },
                         onPairUser = onPairUser,
-                        onDismiss = { showMultiplayerPicker = false }
+                        onDismiss = { multiplayerPickerGame = null }
                     )
                 }
             }
@@ -583,4 +611,5 @@ private fun sessionTypeLabel(type: SessionType): String = when (type) {
     SessionType.CAVE_GAME -> "Fugu Cave"
     SessionType.FLOW_GAME -> "Fugu Flow"
     SessionType.MULTIPLAYER_REEF_GAME -> "Multiplayer Fugu Reef"
+    SessionType.MULTIPLAYER_FEAST_GAME -> "Multiplayer Fugu Feast"
 }

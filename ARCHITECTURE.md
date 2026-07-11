@@ -47,7 +47,8 @@ app/src/main/java/org/hubik/openfugu/
     ├── FuguFeastGame.kt     — Eat smaller fish, avoid bigger ones
     ├── FuguCaveGame.kt      — Navigate through narrowing cave passages
     ├── FuguFlowGame.kt      — Rhythm game (trace a scrolling target pressure curve)
-    └── MultiplayerFuguReefGame.kt — Multiplayer reef race (2–7 players, last fugu standing)
+    ├── MultiplayerFuguReefGame.kt — Multiplayer reef race (2–7 players, last fugu standing)
+    └── MultiplayerFuguFeastGame.kt — Multiplayer feast (2–7 players compete for the same fish)
 ```
 
 ## Data Flow
