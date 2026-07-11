@@ -37,6 +37,10 @@ class DeviceConnection(
         // ever jank: each publish copies the history list (references only —
         // the per-sample boxing and full min/max scans are gone regardless).
         private const val CHART_PUBLISH_EVERY = 1
+        // Give up on unreachable devices well before the ~30 s system-level
+        // GATT timeout. An in-range device completes a direct connect within
+        // a couple of seconds.
+        private const val CONNECT_TIMEOUT_MS = 10_000L
     }
 
     // --- Observable state ---
@@ -69,6 +73,16 @@ class DeviceConnection(
     // --- BLE internals ---
     private var gatt: BluetoothGatt? = null
     private var pendingCharacteristics: MutableList<BluetoothGattCharacteristic> = mutableListOf()
+
+    // Connect timeout. Everything (connect(), disconnect(), GATT callbacks)
+    // runs on the main thread, so posting/removing needs no synchronization.
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val connectTimeoutRunnable = Runnable {
+        val g = gatt
+        if (g != null && _state.value is DeviceConnectionState.Connecting) {
+            abortConnection(g, "Connection timed out — device not reachable")
+        }
+    }
 
     // Auth
     private val secureRandom = SecureRandom()
@@ -122,10 +136,13 @@ class DeviceConnection(
             onLog("connectGatt returned null — is Bluetooth on?")
             _state.value = DeviceConnectionState.Error("Could not start connection")
             onUnexpectedDisconnect()
+        } else {
+            mainHandler.postDelayed(connectTimeoutRunnable, CONNECT_TIMEOUT_MS)
         }
     }
 
     fun disconnect() {
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
         gatt?.disconnect()
         gatt?.close()
         gatt = null
@@ -160,6 +177,7 @@ class DeviceConnection(
 
     /** Give up on a half-established connection: close, surface an error, notify the owner. */
     private fun abortConnection(gatt: BluetoothGatt, message: String) {
+        mainHandler.removeCallbacks(connectTimeoutRunnable)
         onLog(message)
         _state.value = DeviceConnectionState.Error(message)
         gatt.close()
@@ -173,6 +191,7 @@ class DeviceConnection(
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    mainHandler.removeCallbacks(connectTimeoutRunnable)
                     onLog("Connected — requesting MTU 517...")
                     _state.value = DeviceConnectionState.Connected
                     if (!gatt.requestMtu(517)) {
@@ -183,6 +202,7 @@ class DeviceConnection(
                     }
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
+                    mainHandler.removeCallbacks(connectTimeoutRunnable)
                     onLog("Disconnected (status=$status)")
                     _state.value = DeviceConnectionState.Disconnected
                     gatt.close()

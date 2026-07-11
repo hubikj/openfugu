@@ -216,6 +216,7 @@ fun EFuguApp(
     var firstUserPromptDismissed by remember { mutableStateOf(false) }
     var calibrateOfferUser by remember { mutableStateOf<UserProfile?>(null) }
     val rootConnectionStates = connections.mapValues { (_, conn) -> conn.state.collectAsState().value }
+    val connectedCount = rootConnectionStates.values.count { it is DeviceConnectionState.Connected }
     val firstConnectedAddress = rootConnectionStates.entries
         .firstOrNull { it.value is DeviceConnectionState.Connected }?.key
     LaunchedEffect(firstConnectedAddress, userProfiles) {
@@ -434,8 +435,8 @@ fun EFuguApp(
                     icon = {
                         BadgedBox(
                             badge = {
-                                if (connections.isNotEmpty()) {
-                                    Badge { Text("${connections.size}") }
+                                if (connectedCount > 0) {
+                                    Badge { Text("$connectedCount") }
                                 }
                             }
                         ) {
