@@ -389,15 +389,16 @@ fun MultiplayerFuguReefScreen(
                 // Overlays
                 when (gameState) {
                     is GameState.WaitingToStart -> {
-                        // Show all fugus in a row with names
+                        // Show all fugus in a row with names, in the upper
+                        // quarter so the overlay text below stays readable
                         val spacing = w / (players.size + 1)
                         players.forEachIndexed { idx, info ->
                             val cx = spacing * (idx + 1)
-                            drawFugu(cx, h / 2f, fishRadiusPx * 1.5f, bodyColor = info.color)
+                            drawFugu(cx, h * 0.25f, fishRadiusPx * 1.5f, bodyColor = info.color)
                             drawContext.canvas.nativeCanvas.drawText(
                                 info.userName ?: info.displayName,
                                 cx,
-                                h / 2f + fishRadiusPx * 2.5f,
+                                h * 0.25f + fishRadiusPx * 2.5f,
                                 android.graphics.Paint().apply {
                                     color = info.color.toArgb()
                                     textSize = 14f * dpToPx
