@@ -453,6 +453,14 @@ Conclusion from a 2026-07-07 discussion — no commitment, recorded so the reaso
 - Still build in diagnostics (on-screen log, log export via share sheet) from day one so remote testers can report usefully.
 - Distribution needs someone's Apple Developer account ($99/year) — mine or a contributor's. TestFlight external link for friends; builds expire after 90 days.
 
+**Milestones (estimated 2026-07-11, ~11,100 lines total at the time):**
+- **M0 — in-place preparation, Android-only, ships to Play as normal releases.** (a) Swap JVM/Android-isms in otherwise-portable code: `org.json` → kotlinx.serialization (SessionJson/SessionRepository/EFuguViewModel prefs), `java.util.UUID` → kotlin.uuid, `SimpleDateFormat`/`java.time` → kotlinx-datetime, Toast → Snackbar, Android clipboard → Compose clipboard, `android.util.Log` → tiny logger. (b) Extract a pressure-source interface from DeviceConnection (Mock Device validates it), abstract file/preferences storage, split MainActivity's ~1,550 lines of composables from the ~180-line Activity shell. ~1,000 lines touched, low risk, valuable even if iOS never happens.
+- **M1 — KMP restructure.** `shared/` module (commonMain/androidMain), Compose Multiplatform Gradle plugin, ~6,800 lines (all games, exercises, charts, most screens — zero bad imports today) move verbatim. Risk is build-system friction, not runtime bugs.
+- **M2 — BLE rewrite on Kable, proven on Android first.** ~1,100 lines (DeviceConnection + BLE half of EFuguViewModel). The one genuinely risky milestone: multi-device, reconnects, timeouts were hard-won. Mitigate by keeping the old implementation switchable behind the interface. Device identity becomes an opaque string (MAC on Android, UUID on iOS).
+- **M3 — iOS shell boots.** Xcode project, CI signing pipeline, platform actuals (storage, share sheet, keep-screen-on, logger), static theme (no dynamic color on iOS). Games playable on the iPhone via Mock Device before BLE works. Little code, much toolchain friction.
+- **M4 — iOS BLE bring-up.** Kable's CoreBluetooth backend against a real eFugu: Info.plist permission strings, UUID identity, connection concurrency, `.fugu` import (UTType), portrait lock. Protocol already proven in M2; cost driver is CI build latency per iteration.
+- **M5 — TestFlight.** Paperwork.
+
 **What keeps the option cheap meanwhile:** SPEC.md stays platform-neutral, the core stays free of Android imports, protocol knowledge lives in PROTOCOL.md.
 
 ---
