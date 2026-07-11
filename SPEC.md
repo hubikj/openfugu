@@ -255,7 +255,16 @@ narrows from 0.22 to 0.15 of screen height at 0.00006 per distance point;
 wall drift ≤ 0.14 per segment with 0.35 momentum bias; 8 safe starting
 segments. Score = distance.
 
-### 6.7 Fugu Flow (rhythm)
+### 6.7 Multiplayer Fugu Cave (2–7 players)
+
+Same cave for all players (no fish-vs-fish collision), each fish driven
+by its own device and mapped with **its own user's ranges** (§2). The
+distance — and with it speed and gap narrowing — is shared. A wall hit
+eliminates that player, freezing their score at the distance where they
+died; survivors keep going ("last fugu standing"). Game ends when all
+are out; results ranked by distance.
+
+### 6.8 Fugu Flow (rhythm)
 
 A target pressure curve scrolls right-to-left; keep your cursor on it.
 Cursor at x = 30% of width; 3 s look-ahead, 2 s look-behind, 3 s grace

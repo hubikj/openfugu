@@ -116,7 +116,8 @@ internal object SessionJson {
                 negativeRange = json.optDouble("negativeRange", 0.0),
                 expertMode = json.optBoolean("expertMode", false)
             )
-            SessionType.MULTIPLAYER_REEF_GAME, SessionType.MULTIPLAYER_FEAST_GAME -> {
+            SessionType.MULTIPLAYER_REEF_GAME, SessionType.MULTIPLAYER_FEAST_GAME,
+            SessionType.MULTIPLAYER_CAVE_GAME -> {
                 val playersArr = json.getJSONArray("players")
                 val players = (0 until playersArr.length()).map { i ->
                     val p = playersArr.getJSONObject(i)

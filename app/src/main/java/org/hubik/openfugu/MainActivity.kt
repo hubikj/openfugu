@@ -71,6 +71,7 @@ import org.hubik.openfugu.game.FuguCaveScreen
 import org.hubik.openfugu.game.FuguFeastScreen
 import org.hubik.openfugu.game.FuguFlowScreen
 import org.hubik.openfugu.game.FuguReefScreen
+import org.hubik.openfugu.game.MultiplayerFuguCaveScreen
 import org.hubik.openfugu.game.MultiplayerFuguFeastScreen
 import org.hubik.openfugu.game.MultiplayerFuguReefScreen
 import org.hubik.openfugu.game.MultiplayerPlayerInfo
@@ -325,6 +326,11 @@ fun EFuguApp(
                     onSessionSave = onSaveSession
                 )
                 "feast" -> MultiplayerFuguFeastScreen(
+                    players = playerInfos,
+                    onBack = onGameBack,
+                    onSessionSave = onSaveSession
+                )
+                "cave" -> MultiplayerFuguCaveScreen(
                     players = playerInfos,
                     onBack = onGameBack,
                     onSessionSave = onSaveSession

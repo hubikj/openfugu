@@ -69,6 +69,7 @@ private val gameEntries = listOf(
         id = "cave",
         title = "Fugu Cave",
         description = "Navigate through narrowing cave passages",
+        maxPlayers = 7,
         icon = {
             val w = size.width
             val h = size.height
@@ -478,4 +479,5 @@ private fun sessionTypeLabel(type: SessionType): String = when (type) {
     SessionType.FLOW_GAME -> "Fugu Flow"
     SessionType.MULTIPLAYER_REEF_GAME -> "Multiplayer Fugu Reef"
     SessionType.MULTIPLAYER_FEAST_GAME -> "Multiplayer Fugu Feast"
+    SessionType.MULTIPLAYER_CAVE_GAME -> "Multiplayer Fugu Cave"
 }

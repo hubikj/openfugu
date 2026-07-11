@@ -81,7 +81,8 @@ class SessionJsonTest {
     @Test
     fun `multiplayer session round-trips including per-player traces`() {
         listOf(
-            SessionType.MULTIPLAYER_REEF_GAME, SessionType.MULTIPLAYER_FEAST_GAME
+            SessionType.MULTIPLAYER_REEF_GAME, SessionType.MULTIPLAYER_FEAST_GAME,
+            SessionType.MULTIPLAYER_CAVE_GAME
         ).forEach { type ->
             val session = Session.MultiplayerGameSession(
                 id = "id-mp-$type", type = type,

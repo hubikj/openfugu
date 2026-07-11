@@ -238,6 +238,7 @@ private fun sessionTypeDisplayName(type: SessionType): String = when (type) {
     SessionType.FLOW_GAME -> "Fugu Flow"
     SessionType.MULTIPLAYER_REEF_GAME -> "Multiplayer Fugu Reef"
     SessionType.MULTIPLAYER_FEAST_GAME -> "Multiplayer Fugu Feast"
+    SessionType.MULTIPLAYER_CAVE_GAME -> "Multiplayer Fugu Cave"
 }
 
 private fun formatDuration(ms: Long): String {

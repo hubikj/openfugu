@@ -142,7 +142,7 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 
 ## Needs Multiple Devices
 
-### Multiplayer Fugu Reef [x] (and we could also have multiplayer Fugu Cave in a similar fashion)
+### Multiplayer Fugu Reef [x]
 **Goal:** Multiple players on the same screen, each controlling their own colored fugu fish through the same obstacle course.
 
 **UX concept:**
@@ -162,6 +162,19 @@ A loose collection of ideas, not a committed roadmap: some are done, some are pl
 **Device selection:**
 - Use DevicePickerDialog in multi-select mode
 - A paired user is recommended (unpaired devices fall back to default ranges); devices without an assigned color fall back to preset colors
+
+---
+
+### Multiplayer Fugu Cave [x]
+**Goal:** Same principle as Multiplayer Fugu Reef, on the shared cave course.
+
+**How it was resolved (implemented in `MultiplayerFuguCaveGame.kt`):**
+- The cave terrain, scrolling, and gap sampling are shared with the single-player game
+  (extracted to file-level functions in `FuguCaveGame.kt`)
+- Distance is the score and is shared while alive; a wall hit or disconnect eliminates
+  that player and freezes their score at the distance where they died
+- Speed and gap narrowing ramp with the shared distance; eliminated fugus fade but stay
+  visible; game ends when all are out, ranked by distance
 
 ---
 
