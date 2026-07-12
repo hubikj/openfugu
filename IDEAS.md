@@ -291,7 +291,7 @@ Multiplayer games and the Live chart already use assigned device colors. Remaini
 Decided 2026-07-07, work started 2026-07-12. There is real demand: several iPhone-owning friends want the app. **Status: M0–M2 done** (branch `kmp-m1`); M2's Kable path still needs verification against real eFugu hardware via the "Bluetooth engine" setting.
 
 **Approach:**
-- One repo, migrated in place — **no fork**. Restructure into `shared/` (core logic, games, Compose Multiplatform UI) plus thin `androidApp/` and `iosApp/` shells. Rename the repo (e.g. `openfugu`) when it happens; GitHub redirects old URLs.
+- One repo, migrated in place — **no fork**. Restructure into `shared/` (core logic, games, Compose Multiplatform UI) plus thin `app/` (Android) and `iosApp/` shells. Rename the repo (e.g. `openfugu`) when it happens; GitHub redirects old URLs.
 - The algorithmic core (PeakDetector, SustainedPressureDetector, RangeTracker, UserProfile, Session/SessionJson — ~700 lines) already has zero Android imports and ports as-is. SPEC.md is the platform-neutral reference.
 - The BLE layer is the real rewrite: Android `BluetoothGatt` → [Kable](https://github.com/JuulLabs/kable) (Kotlin Multiplatform BLE). iOS CoreBluetooth exposes per-device UUIDs instead of MAC addresses, so device identity / device-user pairing keys need rethinking.
 - UI: Compose Multiplatform runs the existing Compose UI on iOS (stable since 2025); the Canvas-based games and PressureChart translate directly.
