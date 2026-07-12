@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,8 +51,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         importIntent = intent
         setContent {
-            OpenFuguTheme {
-                efuguViewModel = viewModel()
+            efuguViewModel = viewModel()
+            val appSettings by efuguViewModel.appSettings.collectAsState()
+            OpenFuguTheme(
+                darkTheme = when (appSettings.themeMode) {
+                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.DARK -> true
+                }
+            ) {
                 val snackbarHostState = remember { SnackbarHostState() }
                 LaunchedEffect(Unit) {
                     efuguViewModel.userMessages.collect { snackbarHostState.showSnackbar(it) }

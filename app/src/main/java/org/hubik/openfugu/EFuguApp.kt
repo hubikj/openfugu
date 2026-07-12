@@ -14,6 +14,7 @@ import androidx.compose.material.icons.automirrored.filled.Subject
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -37,6 +38,7 @@ import org.hubik.openfugu.game.MultiplayerPlayerInfo
 import org.hubik.openfugu.session.Session
 import org.hubik.openfugu.session.SessionViewerScreen
 import org.hubik.openfugu.ui.CalibrationWizard
+import org.hubik.openfugu.ui.SettingsScreen
 import org.hubik.openfugu.ui.UserDetailScreen
 
 // =============================================================================
@@ -66,6 +68,7 @@ fun EFuguApp(
     // and tab switches, which would reset a locally remembered selection
     var lastExerciseDeviceAddresses by remember { mutableStateOf<List<String>>(emptyList()) }
     var showLogs by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     var showUserDetail by remember { mutableStateOf<String?>(null) }
     var calibratingUserId by remember { mutableStateOf<String?>(null) }
     var viewingSessionId by remember { mutableStateOf<String?>(null) }
@@ -78,6 +81,7 @@ fun EFuguApp(
     val userProfiles by viewModel.userProfiles.collectAsState()
     val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
     val recentSessions by viewModel.recentSessions.collectAsState()
+    val appSettings by viewModel.appSettings.collectAsState()
 
     // Auto-start scan on first composition
     LaunchedEffect(Unit) {
@@ -140,6 +144,19 @@ fun EFuguApp(
                 modifier = Modifier.padding(padding)
             )
         }
+        return
+    }
+
+    // Full-screen settings
+    if (showSettings) {
+        BackHandler { showSettings = false }
+        SettingsScreen(
+            settings = appSettings,
+            appVersion = "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+            onThemeModeChange = { viewModel.updateAppSettings(appSettings.copy(themeMode = it)) },
+            onShowSimulatedDevicesChange = { viewModel.updateAppSettings(appSettings.copy(showSimulatedDevices = it)) },
+            onBack = { showSettings = false }
+        )
         return
     }
 
@@ -321,6 +338,9 @@ fun EFuguApp(
                     IconButton(onClick = { showLogs = true }) {
                         Icon(Icons.AutoMirrored.Filled.Subject, contentDescription = "Logs")
                     }
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                    }
                 }
             )
         },
@@ -418,6 +438,7 @@ fun EFuguApp(
                     else viewModel.unpairDevice(addr)
                 },
                 onAddMockDevice = { viewModel.addMockDevice() },
+                showAddSimulatedDevice = appSettings.showSimulatedDevices,
                 modifier = Modifier.padding(padding)
             )
             3 -> UsersTab(

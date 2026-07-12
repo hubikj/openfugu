@@ -22,6 +22,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import org.hubik.openfugu.AppSettings
 import org.hubik.openfugu.storage.AndroidFileStore
 import org.hubik.openfugu.storage.KeyValueStore
 import org.hubik.openfugu.storage.SharedPrefsStore
@@ -89,6 +90,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         private const val PREF_SAVED_DEVICES = "saved_devices_json"
         private const val PREF_USER_PROFILES = "user_profiles_json"
         private const val PREF_DEVICE_USER_PAIRINGS = "device_user_pairings_json"
+        private const val PREF_APP_SETTINGS = "app_settings_json"
 
         // Session files are at most a few MB (20 Hz traces); anything larger
         // than this is not a session file and must not be buffered into memory.
@@ -117,6 +119,10 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     private val _userMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val userMessages = _userMessages.asSharedFlow()
 
+    // --- App-level settings (theme, developer options) ---
+    private val _appSettings = MutableStateFlow(AppSettings())
+    val appSettings = _appSettings.asStateFlow()
+
     // --- User profiles ---
     private val _userProfiles = MutableStateFlow<List<UserProfile>>(emptyList())
     val userProfiles = _userProfiles.asStateFlow()
@@ -144,6 +150,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         log("OpenFugu ${org.hubik.openfugu.BuildConfig.VERSION_NAME} (build ${org.hubik.openfugu.BuildConfig.VERSION_CODE})")
+        prefs.getString(PREF_APP_SETTINGS)?.let { _appSettings.value = AppSettings.fromJsonString(it) }
         loadSavedDevices()
         loadUserProfiles()
         loadDeviceUserPairings()
@@ -698,6 +705,11 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     /** Queue a one-shot message for the snackbar at the app root. */
     fun postUserMessage(message: String) {
         _userMessages.tryEmit(message)
+    }
+
+    fun updateAppSettings(settings: AppSettings) {
+        _appSettings.value = settings
+        prefs.putString(PREF_APP_SETTINGS, settings.toJsonString())
     }
 
     override fun onCleared() {
