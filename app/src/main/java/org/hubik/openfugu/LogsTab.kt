@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun LogsTab(
     logMessages: List<String>,
+    appVersion: String,
     onShowMessage: (String) -> Unit,
     onSaveLogs: () -> String,
     modifier: Modifier = Modifier
@@ -27,7 +28,7 @@ fun LogsTab(
             .padding(horizontal = 16.dp)
             .padding(top = 8.dp, bottom = 8.dp)
     ) {
-        LogHeader(logMessages, onShowMessage, onSaveLogs)
+        LogHeader(logMessages, appVersion, onShowMessage, onSaveLogs)
         Spacer(modifier = Modifier.height(4.dp))
         LogDisplay(messages = logMessages, modifier = Modifier.weight(1f))
     }
@@ -36,6 +37,7 @@ fun LogsTab(
 @Composable
 fun LogHeader(
     messages: List<String>,
+    appVersion: String,
     onShowMessage: (String) -> Unit,
     onSaveLogs: () -> String
 ) {
@@ -49,7 +51,7 @@ fun LogHeader(
             Text("Log:", style = MaterialTheme.typography.titleSmall)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                "OpenFugu ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+                "OpenFugu $appVersion",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

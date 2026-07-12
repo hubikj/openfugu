@@ -82,6 +82,7 @@ fun EFuguApp(
     val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
     val recentSessions by viewModel.recentSessions.collectAsState()
     val appSettings by viewModel.appSettings.collectAsState()
+    val appVersion = "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})"
 
     // Auto-start scan on first composition
     LaunchedEffect(Unit) {
@@ -139,6 +140,7 @@ fun EFuguApp(
         ) { padding ->
             LogsTab(
                 logMessages = logMessages,
+                appVersion = appVersion,
                 onShowMessage = { viewModel.postUserMessage(it) },
                 onSaveLogs = { onSaveLogs(logMessages) },
                 modifier = Modifier.padding(padding)
@@ -152,7 +154,7 @@ fun EFuguApp(
         BackHandler { showSettings = false }
         SettingsScreen(
             settings = appSettings,
-            appVersion = "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+            appVersion = appVersion,
             onThemeModeChange = { viewModel.updateAppSettings(appSettings.copy(themeMode = it)) },
             onShowSimulatedDevicesChange = { viewModel.updateAppSettings(appSettings.copy(showSimulatedDevices = it)) },
             onBack = { showSettings = false }
