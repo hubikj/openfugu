@@ -23,6 +23,8 @@ import org.hubik.openfugu.ui.BaselineDriftDialog
 import org.hubik.openfugu.ui.PeakConfirmDialog
 import org.hubik.openfugu.ui.StatRow
 import kotlin.math.sqrt
+import org.hubik.openfugu.util.fmt
+import org.hubik.openfugu.util.nowMillis
 
 data class PeakMarker(
     val timestamp: Long,
@@ -87,13 +89,13 @@ fun MinEqExerciseScreen(
         sqrt(successfulPeaks.map { (it - avg) * (it - avg) }.average())
     } else null
     val isStable = successfulPeaks.size >= 5 && stddev != null && stddev < 2.0
-    val exerciseStartMs = remember { System.currentTimeMillis() }
+    val exerciseStartMs = remember { nowMillis() }
 
     // Auto-save session when leaving the exercise (if any peaks were detected)
     DisposableEffect(Unit) {
         onDispose {
             if (peakMarkers.isNotEmpty() && onSessionSave != null) {
-                val endMs = System.currentTimeMillis()
+                val endMs = nowMillis()
                 val saveMean = if (successfulPeaks.isNotEmpty()) successfulPeaks.average() else 0.0
                 val saveStddev = if (successfulPeaks.size >= 2) {
                     val avg = successfulPeaks.average()
@@ -189,14 +191,14 @@ fun MinEqExerciseScreen(
                     StatRow("Successful equalizations", "${successfulPeaks.size}")
                     StatRow("Failed/Rejected", "$failedCount")
                     if (mean != null) {
-                        StatRow("Mean", "${"%.1f".format(mean)} hPa")
+                        StatRow("Mean", "${mean.fmt(1)} hPa")
                     }
                     if (stddev != null) {
-                        StatRow("Std Dev", "${"%.1f".format(stddev)} hPa")
+                        StatRow("Std Dev", "${stddev.fmt(1)} hPa")
                     }
                     if (successfulPeaks.isNotEmpty()) {
                         val rate = successfulPeaks.size.toFloat() / (successfulPeaks.size + failedCount)
-                        StatRow("Success Rate", "${"%.0f".format(rate * 100)}%")
+                        StatRow("Success Rate", "${(rate * 100).fmt(0)}%")
                     }
                     if (isStable) {
                         Spacer(modifier = Modifier.height(8.dp))
@@ -215,7 +217,7 @@ fun MinEqExerciseScreen(
             // Peak history
             if (successfulPeaks.isNotEmpty()) {
                 Text(
-                    "Peaks: ${successfulPeaks.joinToString(", ") { "%.1f".format(it) }} hPa",
+                    "Peaks: ${successfulPeaks.joinToString(", ") { it.fmt(1) }} hPa",
                     style = MaterialTheme.typography.bodySmall
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -229,7 +231,7 @@ fun MinEqExerciseScreen(
                     onClick = { showSaveDialog = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save result (${"%.1f".format(mean)} hPa)")
+                    Text("Save result (${mean.fmt(1)} hPa)")
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -316,7 +318,7 @@ private fun SaveMinEqDialog(
         text = {
             Column {
                 Text(
-                    "Save ${"%.1f".format(meanValue)} hPa as the minimum equalization pressure.",
+                    "Save ${meanValue.fmt(1)} hPa as the minimum equalization pressure.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 if (userProfiles.size > 1) {
@@ -342,7 +344,7 @@ private fun SaveMinEqDialog(
                                             Text(profile.name)
                                             if (profile.minEqPressureHPa != null) {
                                                 Text(
-                                                    "Current: ${"%.1f".format(profile.minEqPressureHPa)} hPa",
+                                                    "Current: ${profile.minEqPressureHPa.fmt(1)} hPa",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -366,7 +368,7 @@ private fun SaveMinEqDialog(
                     )
                     if (selectedProfile.minEqPressureHPa != null) {
                         Text(
-                            "Current value: ${"%.1f".format(selectedProfile.minEqPressureHPa)} hPa",
+                            "Current value: ${selectedProfile.minEqPressureHPa.fmt(1)} hPa",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

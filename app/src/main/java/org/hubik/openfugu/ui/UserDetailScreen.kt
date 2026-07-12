@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ble.EFuguViewModel
 import org.hubik.openfugu.ble.UserProfile
+import org.hubik.openfugu.util.fmt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -338,7 +339,7 @@ private fun PressureRangeCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 val manualRange = profile.gamePressureRangeManual ?: 40.0
                 Text(
-                    "Positive range: ${"%.0f".format(manualRange)} hPa",
+                    "Positive range: ${manualRange.fmt(0)} hPa",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Slider(
@@ -352,7 +353,7 @@ private fun PressureRangeCard(
                 val positiveCap = profile.maxPositiveHPa
                 if (positiveCap != null && manualRange > positiveCap) {
                     Text(
-                        "Capped at ${"%.0f".format(positiveCap)} hPa — your calibrated " +
+                        "Capped at ${positiveCap.fmt(0)} hPa — your calibrated " +
                             "comfortable maximum. Games never require pressure above it.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary
@@ -362,7 +363,7 @@ private fun PressureRangeCard(
                 if (profile.expertMode) {
                     val manualNeg = profile.gameNegativeRangeManual ?: 15.0
                     Text(
-                        "Negative range: ${"%.0f".format(manualNeg)} hPa",
+                        "Negative range: ${manualNeg.fmt(0)} hPa",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Slider(
@@ -376,7 +377,7 @@ private fun PressureRangeCard(
                     val negativeCap = profile.maxNegativeHPa
                     if (negativeCap != null && manualNeg > negativeCap) {
                         Text(
-                            "Capped at ${"%.0f".format(negativeCap)} hPa — your calibrated " +
+                            "Capped at ${negativeCap.fmt(0)} hPa — your calibrated " +
                                 "comfortable maximum. Games never require pressure above it.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary
@@ -386,8 +387,8 @@ private fun PressureRangeCard(
             }
 
             Text(
-                "Effective range: ${"%.0f".format(profile.gamePressureRange)} hPa" +
-                    if (profile.expertMode) " / -${"%.0f".format(profile.gameNegativeRange)} hPa" else "",
+                "Effective range: ${profile.gamePressureRange.fmt(0)} hPa" +
+                    if (profile.expertMode) " / -${profile.gameNegativeRange.fmt(0)} hPa" else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -1,5 +1,7 @@
 package org.hubik.openfugu.ble
 
+import org.hubik.openfugu.util.nowMillis
+
 /**
  * Direction filter for sustained pressure detection.
  * POSITIVE: only reacts to positive pressure (Valsalva/Frenzel).
@@ -25,7 +27,7 @@ class SustainedPressureDetector(
     data class SustainedLevel(
         val valueHPa: Double,
         val durationMs: Long,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = nowMillis()
     )
 
     private data class TimestampedReading(val value: Double, val timestamp: Long)
@@ -46,7 +48,7 @@ class SustainedPressureDetector(
      * Feed a new pressure reading (relative hPa).
      * Returns a SustainedLevel when an attempt ends (pressure drops below threshold), null otherwise.
      */
-    fun addSample(relativeHPa: Double, timestampMs: Long = System.currentTimeMillis()): SustainedLevel? {
+    fun addSample(relativeHPa: Double, timestampMs: Long = nowMillis()): SustainedLevel? {
         // Convert to effective value based on direction:
         // POSITIVE: keep positive values, clamp negative to 0
         // NEGATIVE: negate (so negative pressure becomes positive), clamp positive-input to 0
@@ -104,7 +106,7 @@ class SustainedPressureDetector(
     val currentBestSustained: Double get() = bestSustained
 
     /** Duration of current tracking attempt in ms. */
-    fun currentTrackingDurationMs(now: Long = System.currentTimeMillis()): Long {
+    fun currentTrackingDurationMs(now: Long = nowMillis()): Long {
         return if (tracking) now - trackingStartMs else 0L
     }
 }

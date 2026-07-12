@@ -1,5 +1,7 @@
 package org.hubik.openfugu.exercise
 
+import org.hubik.openfugu.util.nowMillis
+
 /**
  * Tracks whether pressure readings fall within a target range for the Constant EQ exercise.
  *
@@ -40,7 +42,7 @@ class RangeTracker(
         get() = if (totalTimeMs > 0) timeInRangeMs.toFloat() / totalTimeMs else 0f
 
     /** Time remaining in grace period (0 if scoring). */
-    fun graceRemainingMs(now: Long = System.currentTimeMillis()): Long {
+    fun graceRemainingMs(now: Long = nowMillis()): Long {
         if (!activated || scoring) return 0L
         return (gracePeriodMs - (now - activationTimestampMs)).coerceAtLeast(0)
     }

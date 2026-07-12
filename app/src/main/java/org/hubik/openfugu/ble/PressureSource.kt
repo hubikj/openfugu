@@ -2,6 +2,7 @@ package org.hubik.openfugu.ble
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.hubik.openfugu.util.fmt
 
 sealed class DeviceConnectionState {
     data object Connecting : DeviceConnectionState()
@@ -135,7 +136,7 @@ abstract class PressureSource(
             if (calibrationSamples.size >= CALIBRATION_SAMPLES) {
                 ambientBaselineHPa = calibrationSamples.average()
                 _isCalibrated.value = true
-                onLog("Calibrated: baseline=${"%.1f".format(ambientBaselineHPa)} hPa")
+                onLog("Calibrated: baseline=${ambientBaselineHPa!!.fmt(1)} hPa")
                 calibrationSamples.clear()
             }
             return
@@ -171,7 +172,7 @@ abstract class PressureSource(
         // Log every ~5 seconds
         pressureLogCounter++
         if (pressureLogCounter % 100 == 1) {
-            onLog("Pressure: ${"%.1f".format(relativeHPa)} hPa (abs=${"%.1f".format(pressureHPa)})")
+            onLog("Pressure: ${relativeHPa.fmt(1)} hPa (abs=${pressureHPa.fmt(1)})")
         }
     }
 }

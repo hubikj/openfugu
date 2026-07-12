@@ -32,6 +32,8 @@ import org.hubik.openfugu.ChartLine
 import org.hubik.openfugu.PressureChart
 import org.hubik.openfugu.exercise.PeakMarker
 import kotlin.math.sqrt
+import org.hubik.openfugu.util.fmt
+import org.hubik.openfugu.util.nowMillis
 
 private enum class WizardStep { INTRO, MIN_EQ, MAX_POSITIVE, MAX_NEGATIVE, SUMMARY }
 
@@ -139,7 +141,7 @@ fun CalibrationWizard(
                             minEqPressureHPa = minEqResult ?: profile.minEqPressureHPa,
                             maxPositiveHPa = maxPositiveResult ?: profile.maxPositiveHPa,
                             maxNegativeHPa = maxNegativeResult ?: profile.maxNegativeHPa,
-                            lastCalibratedAt = System.currentTimeMillis()
+                            lastCalibratedAt = nowMillis()
                         ))
                     }
                     onComplete()
@@ -466,14 +468,14 @@ private fun MinEqStep(
                 StatRow("Successful equalizations", "${successfulPeaks.size}")
                 StatRow("Failed/Rejected", "${results.failedCount}")
                 if (mean != null) {
-                    StatRow("Mean", "${"%.1f".format(mean)} hPa")
+                    StatRow("Mean", "${mean.fmt(1)} hPa")
                 }
                 if (stddev != null) {
-                    StatRow("Standard deviation", "${"%.1f".format(stddev)} hPa")
+                    StatRow("Standard deviation", "${stddev.fmt(1)} hPa")
                 }
                 if (successfulPeaks.isNotEmpty()) {
                     val rate = successfulPeaks.size.toFloat() / (successfulPeaks.size + results.failedCount)
-                    StatRow("Success Rate", "${"%.0f".format(rate * 100)}%")
+                    StatRow("Success Rate", "${(rate * 100).fmt(0)}%")
                 }
                 if (isStable) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -491,7 +493,7 @@ private fun MinEqStep(
 
         // Peak history
         if (successfulPeaks.isNotEmpty()) {
-            Text("Peaks: ${successfulPeaks.joinToString(", ") { "%.1f".format(it) }} hPa",
+            Text("Peaks: ${successfulPeaks.joinToString(", ") { it.fmt(1) }} hPa",
                 style = MaterialTheme.typography.bodySmall)
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -504,7 +506,7 @@ private fun MinEqStep(
                 onClick = { onNext(mean) },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Use this value (${"%.1f".format(mean)} hPa)")
+                Text("Use this value (${mean!!.fmt(1)} hPa)")
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -581,7 +583,7 @@ private fun MaxPressureStep(
     LaunchedEffect(connection) {
         connection.latestPressure.collect { reading ->
             if (reading == null) return@collect
-            val now = System.currentTimeMillis()
+            val now = nowMillis()
             val result = detector.addSample(reading.relativeHPa, now)
 
             isHolding = detector.isTracking
@@ -640,7 +642,7 @@ private fun MaxPressureStep(
                     if (currentBest > 0.0) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Best sustained: ${"%.1f".format(currentBest)} hPa",
+                            "Best sustained: ${currentBest.fmt(1)} hPa",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -669,17 +671,17 @@ private fun MaxPressureStep(
                 Spacer(modifier = Modifier.height(8.dp))
                 if (completedHolds.isEmpty()) {
                     Text(
-                        "Hold $targetHolds times above ${"%.0f".format(threshold)} hPa",
+                        "Hold $targetHolds times above ${threshold.fmt(0)} hPa",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     completedHolds.forEachIndexed { index, value ->
-                        StatRow("Hold ${index + 1}", "${"%.1f".format(value)} hPa")
+                        StatRow("Hold ${index + 1}", "${value.fmt(1)} hPa")
                     }
                     if (average != null) {
                         Spacer(modifier = Modifier.height(4.dp))
-                        StatRow("Average", "${"%.1f".format(average)} hPa")
+                        StatRow("Average", "${average.fmt(1)} hPa")
                     }
                 }
                 Text(
@@ -698,7 +700,7 @@ private fun MaxPressureStep(
                 onClick = { onNext(average) },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Use this value (${"%.1f".format(average)} hPa)")
+                Text("Use this value (${average!!.fmt(1)} hPa)")
             }
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -772,7 +774,7 @@ private fun SummaryStep(
                 HpaValueRow("Maximum Negative", maxNegative, nullText = "Skipped")
                 if (!allSkipped) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    StatRow("Game Pressure Range", "${"%.0f".format(gameRange)} hPa")
+                    StatRow("Game Pressure Range", "${gameRange.fmt(0)} hPa")
                 }
             }
         }

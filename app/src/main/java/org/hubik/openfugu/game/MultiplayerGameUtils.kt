@@ -19,6 +19,7 @@ import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.session.Session
 import org.hubik.openfugu.session.SessionType
+import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
 // Player info passed to every multiplayer game
@@ -98,7 +99,7 @@ fun saveMultiplayerSession(
     gameStartMs: Long,
     onSessionSave: (Session) -> Unit
 ) {
-    val endMs = System.currentTimeMillis()
+    val endMs = nowMillis()
     val ranked = playerStates.sortedByDescending { it.score }
     val playerResults = ranked.mapIndexed { idx, ps ->
         val chartData = ps.info.connection.historySnapshot()

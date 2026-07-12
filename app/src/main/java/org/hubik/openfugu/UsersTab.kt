@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ble.DeviceUserPairing
 import org.hubik.openfugu.ble.SavedDevice
 import org.hubik.openfugu.ble.UserProfile
+import org.hubik.openfugu.util.fmt
 
 @Composable
 fun UsersTab(
@@ -114,9 +115,9 @@ fun UsersTab(
                                 } else {
                                     add("Not calibrated")
                                 }
-                                val range = "%.0f".format(profile.gamePressureRange)
+                                val range = profile.gamePressureRange.fmt(0)
                                 if (profile.expertMode && profile.gameNegativeRange > 0.0) {
-                                    add("Range: $range / -${"%.0f".format(profile.gameNegativeRange)} hPa")
+                                    add("Range: $range / -${profile.gameNegativeRange.fmt(0)} hPa")
                                 } else {
                                     add("Range: $range hPa")
                                 }

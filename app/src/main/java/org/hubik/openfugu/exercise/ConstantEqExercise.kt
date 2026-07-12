@@ -18,6 +18,8 @@ import org.hubik.openfugu.ble.PressureReading
 import org.hubik.openfugu.util.formatHPa
 import org.hubik.openfugu.ui.AppColors
 import org.hubik.openfugu.ui.StatRow
+import org.hubik.openfugu.util.fmt
+import org.hubik.openfugu.util.nowMillis
 
 private sealed class ExerciseState {
     data object Setup : ExerciseState()
@@ -161,13 +163,13 @@ private fun SetupScreen(
                 Text("Target Range", style = MaterialTheme.typography.titleSmall)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "${"%.1f".format(lowerBound)} – ${"%.1f".format(upperBound)} hPa",
+                    "${lowerBound.fmt(1)} – ${upperBound.fmt(1)} hPa",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = AppColors.inRange
                 )
                 Text(
-                    "Activation threshold: ${"%.1f".format(minEqPressureHPa)} hPa",
+                    "Activation threshold: ${minEqPressureHPa.fmt(1)} hPa",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -229,7 +231,7 @@ private fun RunningScreen(
     val tracker = remember(difficulty) {
         RangeTracker.create(minEqPressureHPa, difficulty.lowerPercent, difficulty.upperPercent)
     }
-    val exerciseStartMs = remember { System.currentTimeMillis() }
+    val exerciseStartMs = remember { nowMillis() }
     val latestPressure by connection.latestPressure.collectAsState()
     val chartData by connection.chartData.collectAsState()
 
@@ -248,7 +250,7 @@ private fun RunningScreen(
     // Feed pressure to tracker
     LaunchedEffect(latestPressure) {
         val reading = latestPressure ?: return@LaunchedEffect
-        val now = System.currentTimeMillis()
+        val now = nowMillis()
         tracker.addSample(reading.relativeHPa, now)
         activated = tracker.activated
         scoring = tracker.scoring
@@ -295,7 +297,7 @@ private fun RunningScreen(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        "Cross ${"%.1f".format(minEqPressureHPa)} hPa to activate tracking",
+                        "Cross ${minEqPressureHPa.fmt(1)} hPa to activate tracking",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
@@ -327,7 +329,7 @@ private fun RunningScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("In Range", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        "${"%.0f".format(percentInRange * 100)}%",
+                        "${(percentInRange * 100).fmt(0)}%",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = if (percentInRange >= 0.75f) inRangeColor else outOfRangeColor
@@ -471,12 +473,12 @@ private fun FinishedScreen(
 
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
-                StatRow("Time in range", "${"%.0f".format(percentInRange * 100)}%")
+                StatRow("Time in range", "${(percentInRange * 100).fmt(0)}%")
                 StatRow("Best streak", formatDuration(bestStreakMs))
                 StatRow("Total time", formatDuration(totalTimeMs))
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 StatRow("Difficulty", difficulty.label)
-                StatRow("Target range", "${"%.1f".format(minEqPressureHPa * difficulty.lowerPercent)} – ${"%.1f".format(minEqPressureHPa * difficulty.upperPercent)} hPa")
+                StatRow("Target range", "${(minEqPressureHPa * difficulty.lowerPercent).fmt(1)} – ${(minEqPressureHPa * difficulty.upperPercent).fmt(1)} hPa")
             }
         }
 

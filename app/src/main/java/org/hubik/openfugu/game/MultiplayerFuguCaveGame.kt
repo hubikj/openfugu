@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
 // Screen composable
@@ -43,7 +44,7 @@ fun MultiplayerFuguCaveScreen(
         playerStates = players.map { MultiplayerPlayerState(it) }
         scrollOffset = 0f
         segments = buildInitialCave(canvasSizeDp.first)
-        gameStartMs = System.currentTimeMillis()
+        gameStartMs = nowMillis()
         gameState = GameState.Playing
     }
 

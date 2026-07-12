@@ -1,7 +1,6 @@
 package org.hubik.openfugu.session
 
 import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -11,6 +10,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import org.hubik.openfugu.util.AppLog
 import java.io.File
 import java.io.IOException
 
@@ -47,7 +47,7 @@ class SessionRepository(private val context: Context) {
                 cleanupOldSessionsLocked()
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to save session", e)
+                AppLog.e(TAG, "Failed to save session", e)
                 false
             }
         }
@@ -63,7 +63,7 @@ class SessionRepository(private val context: Context) {
         try {
             SessionJson.sessionFromJson(Json.parseToJsonElement(file.readText()).jsonObject)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load session $id", e)
+            AppLog.e(TAG, "Failed to load session $id", e)
             null
         }
     }
@@ -92,7 +92,7 @@ class SessionRepository(private val context: Context) {
                 .map { SessionJson.indexEntryFromJson(it.jsonObject) }
                 .sortedByDescending { it.timestamp }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to load index, rebuilding", e)
+            AppLog.w(TAG, "Failed to load index, rebuilding", e)
             rebuildIndexLocked()
         }
         cachedIndex = entries

@@ -1,9 +1,5 @@
 package org.hubik.openfugu
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.widget.Toast
-import java.io.File
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,28 +8,38 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun LogsTab(logMessages: List<String>, modifier: Modifier = Modifier) {
+fun LogsTab(
+    logMessages: List<String>,
+    onShowMessage: (String) -> Unit,
+    onSaveLogs: () -> String,
+    modifier: Modifier = Modifier
+) {
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
             .padding(top = 8.dp, bottom = 8.dp)
     ) {
-        LogHeader(logMessages)
+        LogHeader(logMessages, onShowMessage, onSaveLogs)
         Spacer(modifier = Modifier.height(4.dp))
         LogDisplay(messages = logMessages, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-fun LogHeader(messages: List<String>) {
-    val context = LocalContext.current
+fun LogHeader(
+    messages: List<String>,
+    onShowMessage: (String) -> Unit,
+    onSaveLogs: () -> String
+) {
+    val clipboard = LocalClipboardManager.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -50,18 +56,12 @@ fun LogHeader(messages: List<String>) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TextButton(onClick = {
-                val clipboard = context.getSystemService(ClipboardManager::class.java)
-                clipboard.setPrimaryClip(ClipData.newPlainText("OpenFugu Logs", messages.joinToString("\n")))
-                Toast.makeText(context, "Logs copied!", Toast.LENGTH_SHORT).show()
+                clipboard.setText(AnnotatedString(messages.joinToString("\n")))
+                onShowMessage("Logs copied!")
             }) {
                 Text("Copy", fontSize = 12.sp)
             }
-            TextButton(onClick = {
-                val dir = context.getExternalFilesDir(null)
-                val file = File(dir, "openfugu_log.txt")
-                file.writeText(messages.joinToString("\n"))
-                Toast.makeText(context, "Saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-            }) {
+            TextButton(onClick = { onShowMessage(onSaveLogs()) }) {
                 Text("Save", fontSize = 12.sp)
             }
         }

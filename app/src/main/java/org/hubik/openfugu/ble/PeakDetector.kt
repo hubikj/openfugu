@@ -1,5 +1,7 @@
 package org.hubik.openfugu.ble
 
+import org.hubik.openfugu.util.nowMillis
+
 /**
  * Detects pressure peaks for min EQ calibration.
  * Two-state machine: Idle → Rising → Idle.
@@ -17,7 +19,7 @@ class PeakDetector(
     private val stuckAfterSamples: Int = (stuckAfterMs * sampleRateHz / 1000L).toInt()
     data class DetectedPeak(
         val peakValueHPa: Double,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = nowMillis()
     )
 
     private enum class State { IDLE, RISING }
@@ -71,14 +73,14 @@ class PeakDetector(
                 } else if (smoothed >= minPeakAmplitude) {
                     state = State.RISING
                     currentPeak = smoothed
-                    currentPeakTimestamp = System.currentTimeMillis()
+                    currentPeakTimestamp = nowMillis()
                 }
                 null
             }
             State.RISING -> {
                 if (smoothed > currentPeak) {
                     currentPeak = smoothed
-                    currentPeakTimestamp = System.currentTimeMillis()
+                    currentPeakTimestamp = nowMillis()
                     null
                 } else if (smoothed < currentPeak * (1.0 - dropThreshold)) {
                     // Dropped enough to confirm peak — use the timestamp of the actual peak,

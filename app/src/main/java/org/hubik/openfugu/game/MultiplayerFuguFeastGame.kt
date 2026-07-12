@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.hypot
 import kotlin.math.sin
+import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
 // Multiplayer-specific tuning
@@ -85,7 +86,7 @@ fun MultiplayerFuguFeastScreen(
         rocks = emptyList()
         enemySpawnTimer = 0f
         rockSpawnTimer = 0f
-        gameStartMs = System.currentTimeMillis()
+        gameStartMs = nowMillis()
         gameState = GameState.Playing
     }
 

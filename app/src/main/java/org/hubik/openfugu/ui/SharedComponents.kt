@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.hubik.openfugu.util.fmt
 
 // =============================================================================
 // Shared colors used across exercises, calibration, and charts
@@ -84,7 +85,7 @@ fun HpaValueRow(
     ) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
         Text(
-            if (value != null) "${"%.1f".format(value)} $unit" else nullText,
+            if (value != null) "${value.fmt(1)} $unit" else nullText,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = if (value != null) MaterialTheme.colorScheme.onSurface
@@ -104,7 +105,7 @@ fun PeakConfirmDialog(
         onDismissRequest = onReject,
         title = { Text("Peak Detected") },
         text = {
-            Text("${"%.1f".format(peakValueHPa)} hPa\n\nWas this a successful equalization?")
+            Text("${peakValueHPa.fmt(1)} hPa\n\nWas this a successful equalization?")
         },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text("Yes") }

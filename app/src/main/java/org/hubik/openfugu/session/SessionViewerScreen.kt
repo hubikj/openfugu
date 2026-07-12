@@ -1,7 +1,6 @@
 package org.hubik.openfugu.session
 
 import android.content.Intent
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,9 +27,10 @@ import org.hubik.openfugu.ui.AppColors
 import org.hubik.openfugu.ui.HpaValueRow
 import org.hubik.openfugu.ui.StatRow
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import org.hubik.openfugu.util.FileStampFormat
+import org.hubik.openfugu.util.LongDateTimeFormat
+import org.hubik.openfugu.util.fmt
+import org.hubik.openfugu.util.formatTimestamp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,8 +62,6 @@ fun SessionViewerScreen(
         LaunchedEffect(Unit) { onBack() }
         return
     }
-
-    val dateFormat = remember { SimpleDateFormat("MMM d, yyyy  HH:mm", Locale.getDefault()) }
 
     Scaffold(
         topBar = {
@@ -101,7 +99,7 @@ fun SessionViewerScreen(
                     .padding(top = 8.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    StatRow("Date", dateFormat.format(Date(session.timestamp)))
+                    StatRow("Date", formatTimestamp(session.timestamp, LongDateTimeFormat))
                     StatRow("Duration", formatDuration(session.durationMs))
                     StatRow("Device", session.deviceName)
                     session.userName?.let { StatRow("User", it) }
@@ -153,31 +151,31 @@ fun SessionViewerScreen(
                         is Session.MinEqSession -> {
                             Text("Minimum Equalization Results", style = MaterialTheme.typography.titleSmall)
                             Spacer(modifier = Modifier.height(8.dp))
-                            StatRow("Mean pressure", "${"%.1f".format(session.mean)} hPa")
-                            session.stddev?.let { StatRow("Standard deviation", "${"%.1f".format(it)} hPa") }
+                            StatRow("Mean pressure", "${session.mean.fmt(1)} hPa")
+                            session.stddev?.let { StatRow("Standard deviation", "${it.fmt(1)} hPa") }
                             StatRow("Successful equalizations", "${session.successCount}")
                             StatRow("Failed/rejected", "${session.failCount}")
                             if (session.successCount + session.failCount > 0) {
                                 val rate = session.successCount.toFloat() / (session.successCount + session.failCount)
-                                StatRow("Success rate", "${"%.0f".format(rate * 100)}%")
+                                StatRow("Success rate", "${(rate * 100).fmt(0)}%")
                             }
                         }
                         is Session.ConstantEqSession -> {
                             Text("Constant Equalization Results", style = MaterialTheme.typography.titleSmall)
                             Spacer(modifier = Modifier.height(8.dp))
-                            StatRow("Time in range", "${"%.0f".format(session.percentInRange * 100)}%")
+                            StatRow("Time in range", "${(session.percentInRange * 100).fmt(0)}%")
                             StatRow("Best streak", formatDuration(session.bestStreakMs))
                             StatRow("Difficulty", session.difficultyLabel)
-                            StatRow("Target range", "${"%.1f".format(session.lowerBound)} – ${"%.1f".format(session.upperBound)} hPa")
+                            StatRow("Target range", "${session.lowerBound.fmt(1)} – ${session.upperBound.fmt(1)} hPa")
                             StatRow("Duration setting", session.durationSetting)
                         }
                         is Session.GameSession -> {
                             Text(sessionTypeDisplayName(session.type), style = MaterialTheme.typography.titleSmall)
                             Spacer(modifier = Modifier.height(8.dp))
                             StatRow("Score", "${session.score}")
-                            StatRow("Pressure range", "${"%.0f".format(session.pressureRange)} hPa")
+                            StatRow("Pressure range", "${session.pressureRange.fmt(0)} hPa")
                             if (session.expertMode && session.negativeRange > 0.0) {
-                                StatRow("Negative range", "${"%.0f".format(session.negativeRange)} hPa")
+                                StatRow("Negative range", "${session.negativeRange.fmt(0)} hPa")
                             }
                             if (session.expertMode) {
                                 StatRow("Expert mode", "Yes")
@@ -251,7 +249,7 @@ private fun formatDuration(ms: Long): String {
 private suspend fun shareSession(context: android.content.Context, viewModel: EFuguViewModel, sessionId: String, session: Session) {
     val json = viewModel.exportSessionJson(sessionId)
     if (json == null) {
-        Toast.makeText(context, "Session file not found", Toast.LENGTH_SHORT).show()
+        viewModel.postUserMessage("Session file not found")
         return
     }
     try {
@@ -262,7 +260,7 @@ private suspend fun shareSession(context: android.content.Context, viewModel: EF
             // are no longer referenced by any in-flight intent we control.
             dir.listFiles()?.forEach { it.delete() }
             val userStr = session.userName?.replace(" ", "_") ?: "unknown"
-            val dateStr = SimpleDateFormat("yyyy-MM-dd_HHmm", Locale.getDefault()).format(Date(session.timestamp))
+            val dateStr = formatTimestamp(session.timestamp, FileStampFormat)
             val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")
             // .fugu extension (JSON inside): receiving apps resolve it to
             // application/octet-stream, which is what our import intent filter
@@ -279,6 +277,6 @@ private suspend fun shareSession(context: android.content.Context, viewModel: EF
         }
         context.startActivity(Intent.createChooser(intent, "Share session"))
     } catch (e: Exception) {
-        Toast.makeText(context, "Failed to share: ${e.message}", Toast.LENGTH_SHORT).show()
+        viewModel.postUserMessage("Failed to share: ${e.message}")
     }
 }

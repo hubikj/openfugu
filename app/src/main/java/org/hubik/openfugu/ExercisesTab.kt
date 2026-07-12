@@ -30,9 +30,8 @@ import org.hubik.openfugu.game.drawFugu
 import org.hubik.openfugu.session.SessionIndexEntry
 import org.hubik.openfugu.session.SessionType
 import org.hubik.openfugu.ui.AppColors
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import org.hubik.openfugu.util.ShortDateTimeFormat
+import org.hubik.openfugu.util.formatTimestamp
 import kotlin.math.sin
 
 // One entry per launchable game or exercise. Cards render from this list, and
@@ -285,7 +284,6 @@ fun ExercisesTab(
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
             var pendingDeletes by remember { mutableStateOf(setOf<String>()) }
 
             // If the tab leaves composition during the undo window, commit the
@@ -369,7 +367,7 @@ fun ExercisesTab(
                                 )
                                 Text(
                                     buildString {
-                                        append(dateFormat.format(Date(entry.timestamp)))
+                                        append(formatTimestamp(entry.timestamp, ShortDateTimeFormat))
                                         append("  ·  ")
                                         val secs = entry.durationMs / 1000
                                         if (secs >= 60) append("${secs / 60}m ${secs % 60}s")

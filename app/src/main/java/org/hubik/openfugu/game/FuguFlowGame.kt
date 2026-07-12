@@ -26,6 +26,7 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
+import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
 // Game constants
@@ -401,14 +402,14 @@ fun FuguFlowScreen(
         okTime = 0f
         missTime = 0f
         playerTrail = emptyList()
-        gameStartMs = System.currentTimeMillis()
+        gameStartMs = nowMillis()
         gameState = GameState.Playing
     }
 
     LaunchedEffect(gameState) {
         val gs = gameState
         if (gs is GameState.GameOver && onSessionSave != null) {
-            val endMs = System.currentTimeMillis()
+            val endMs = nowMillis()
             onSessionSave.invoke(org.hubik.openfugu.session.Session.GameSession(
                 durationMs = endMs - gameStartMs,
                 deviceName = deviceName,

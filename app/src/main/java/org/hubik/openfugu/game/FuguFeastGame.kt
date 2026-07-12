@@ -25,6 +25,7 @@ import org.hubik.openfugu.util.formatHPa
 import kotlin.math.max
 import kotlin.math.sin
 import kotlin.math.sqrt
+import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
 // Game constants — all spatial values in dp.
@@ -121,7 +122,7 @@ fun FuguFeastScreen(
         score = 0
         enemySpawnTimer = 0f
         rockSpawnTimer = 0f
-        gameStartMs = System.currentTimeMillis()
+        gameStartMs = nowMillis()
         gameState = GameState.Playing
     }
 
@@ -129,7 +130,7 @@ fun FuguFeastScreen(
     LaunchedEffect(gameState) {
         val gs = gameState
         if (gs is GameState.GameOver && onSessionSave != null) {
-            val endMs = System.currentTimeMillis()
+            val endMs = nowMillis()
             onSessionSave.invoke(org.hubik.openfugu.session.Session.GameSession(
                 durationMs = endMs - gameStartMs,
                 deviceName = deviceName,

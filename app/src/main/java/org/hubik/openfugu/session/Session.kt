@@ -1,8 +1,12 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
 package org.hubik.openfugu.session
 
 import org.hubik.openfugu.ble.PressureReading
 import org.hubik.openfugu.exercise.PeakMarker
-import java.util.UUID
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+import org.hubik.openfugu.util.nowMillis
 
 enum class SessionType {
     MIN_EQ, CONSTANT_EQ,
@@ -20,8 +24,8 @@ sealed class Session {
     abstract val pressureTrace: List<PressureReading>
 
     data class MinEqSession(
-        override val id: String = UUID.randomUUID().toString(),
-        override val timestamp: Long = System.currentTimeMillis(),
+        override val id: String = Uuid.random().toString(),
+        override val timestamp: Long = nowMillis(),
         override val durationMs: Long,
         override val deviceName: String,
         override val userName: String?,
@@ -36,8 +40,8 @@ sealed class Session {
     }
 
     data class ConstantEqSession(
-        override val id: String = UUID.randomUUID().toString(),
-        override val timestamp: Long = System.currentTimeMillis(),
+        override val id: String = Uuid.random().toString(),
+        override val timestamp: Long = nowMillis(),
         override val durationMs: Long,
         override val deviceName: String,
         override val userName: String?,
@@ -55,9 +59,9 @@ sealed class Session {
     }
 
     data class GameSession(
-        override val id: String = UUID.randomUUID().toString(),
+        override val id: String = Uuid.random().toString(),
         override val type: SessionType,
-        override val timestamp: Long = System.currentTimeMillis(),
+        override val timestamp: Long = nowMillis(),
         override val durationMs: Long,
         override val deviceName: String,
         override val userName: String?,
@@ -82,9 +86,9 @@ sealed class Session {
     )
 
     data class MultiplayerGameSession(
-        override val id: String = UUID.randomUUID().toString(),
+        override val id: String = Uuid.random().toString(),
         override val type: SessionType,
-        override val timestamp: Long = System.currentTimeMillis(),
+        override val timestamp: Long = nowMillis(),
         override val durationMs: Long,
         override val pressureTrace: List<PressureReading>, // winner's trace
         val players: List<PlayerResult>

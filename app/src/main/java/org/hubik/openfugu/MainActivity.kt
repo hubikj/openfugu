@@ -1,12 +1,9 @@
 package org.hubik.openfugu
 
 import android.Manifest
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.widget.Toast
 import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -89,6 +86,7 @@ import org.hubik.openfugu.ui.AppColors
 import org.hubik.openfugu.ui.UserDetailScreen
 import org.hubik.openfugu.ui.CalibrationWizard
 import org.hubik.openfugu.ui.theme.OpenFuguTheme
+import org.hubik.openfugu.util.nowMillis
 
 class MainActivity : ComponentActivity() {
     private lateinit var efuguViewModel: EFuguViewModel
@@ -113,6 +111,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             OpenFuguTheme {
                 efuguViewModel = viewModel()
+                val snackbarHostState = remember { SnackbarHostState() }
+                LaunchedEffect(Unit) {
+                    efuguViewModel.userMessages.collect { snackbarHostState.showSnackbar(it) }
+                }
                 Box {
                     EFuguApp(
                         viewModel = efuguViewModel,
@@ -123,6 +125,14 @@ class MainActivity : ComponentActivity() {
                     // Slider controls for simulated devices, drawn over every
                     // screen (games included) while any mock is connected.
                     MockDeviceOverlay(viewModel = efuguViewModel)
+                    // Messages float over every screen, games included — the
+                    // same reach the old toasts had.
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                    )
                 }
             }
         }
@@ -197,7 +207,6 @@ fun EFuguApp(
 
     // Open a session file handed to us by another app (tap in a file manager,
     // "open with" from an email or messenger attachment).
-    val importContext = LocalContext.current
     LaunchedEffect(importIntent) {
         val intent = importIntent ?: return@LaunchedEffect
         val uri = when (intent.action) {
@@ -210,7 +219,7 @@ fun EFuguApp(
             if (session != null) {
                 viewingSessionId = session.id
             } else {
-                Toast.makeText(importContext, "This file is not an OpenFugu session", Toast.LENGTH_LONG).show()
+                viewModel.postUserMessage("This file is not an OpenFugu session")
             }
         }
         onImportIntentHandled()
@@ -250,7 +259,21 @@ fun EFuguApp(
                 )
             }
         ) { padding ->
-            LogsTab(logMessages = logMessages, modifier = Modifier.padding(padding))
+            val logsContext = LocalContext.current
+            LogsTab(
+                logMessages = logMessages,
+                onShowMessage = { viewModel.postUserMessage(it) },
+                onSaveLogs = {
+                    try {
+                        val file = File(logsContext.getExternalFilesDir(null), "openfugu_log.txt")
+                        file.writeText(logMessages.joinToString("\n"))
+                        "Saved: ${file.absolutePath}"
+                    } catch (e: Exception) {
+                        "Could not save logs"
+                    }
+                },
+                modifier = Modifier.padding(padding)
+            )
         }
         return
     }
@@ -357,9 +380,8 @@ fun EFuguApp(
         } else {
             // Too few players left. Reset in an effect (never as a side effect
             // of composition) and tell the players what happened.
-            val context = LocalContext.current
             LaunchedEffect(Unit) {
-                Toast.makeText(context, "Player disconnected — multiplayer game ended", Toast.LENGTH_LONG).show()
+                viewModel.postUserMessage("Player disconnected — multiplayer game ended")
                 activeGame = null
                 activeGameDeviceAddresses = emptyList()
             }
@@ -418,9 +440,8 @@ fun EFuguApp(
         } else {
             // The game's device disconnected. Reset in an effect (never as a
             // side effect of composition) and tell the user.
-            val context = LocalContext.current
             LaunchedEffect(Unit) {
-                Toast.makeText(context, "Device disconnected — game ended", Toast.LENGTH_LONG).show()
+                viewModel.postUserMessage("Device disconnected — game ended")
                 activeGame = null
                 activeGameDeviceAddresses = emptyList()
             }
@@ -1307,9 +1328,9 @@ fun DevicesTab(
             !connections.containsKey(it.address) && it.address !in pendingForgets
         }
         // Re-evaluate freshness every second so stale entries fade out
-        val nowMs by produceState(System.currentTimeMillis()) {
+        val nowMs by produceState(nowMillis()) {
             while (true) {
-                value = System.currentTimeMillis()
+                value = nowMillis()
                 kotlinx.coroutines.delay(500)
             }
         }

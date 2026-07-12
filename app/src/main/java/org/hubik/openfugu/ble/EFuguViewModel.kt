@@ -8,12 +8,12 @@ import android.bluetooth.le.*
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
-import android.util.Log
-import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -23,19 +23,21 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import org.hubik.openfugu.util.AppLog
+import org.hubik.openfugu.util.LogTimeFormat
 import org.hubik.openfugu.util.boolean
+import org.hubik.openfugu.util.formatTimestamp
 import org.hubik.openfugu.util.doubleOrNull
 import org.hubik.openfugu.util.long
 import org.hubik.openfugu.util.string
 import org.hubik.openfugu.util.stringOrNull
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import org.hubik.openfugu.util.nowMillis
 
 data class ScannedDevice(
     val name: String?,
     val address: String,
     val rssi: Int,
-    val lastSeenMs: Long = System.currentTimeMillis()
+    val lastSeenMs: Long = nowMillis()
 )
 
 /** Preset colors for identifying eFugu devices (hex ARGB). */
@@ -67,7 +69,7 @@ data class SavedDevice(
 data class PressureReading(
     val pressureHPa: Double,
     val relativeHPa: Double,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = nowMillis()
 )
 
 /** App-level scan state (not per-device) */
@@ -109,6 +111,10 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     private val _logMessages = MutableStateFlow<List<String>>(emptyList())
     val logMessages = _logMessages.asStateFlow()
 
+    // One-shot messages for the user (shown as snackbars by the app root).
+    private val _userMessages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val userMessages = _userMessages.asSharedFlow()
+
     // --- User profiles ---
     private val _userProfiles = MutableStateFlow<List<UserProfile>>(emptyList())
     val userProfiles = _userProfiles.asStateFlow()
@@ -126,7 +132,6 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     val recentSessions = _recentSessions.asStateFlow()
 
     private var scanner: BluetoothLeScanner? = null
-    private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
     // Devices the user explicitly disconnected this app run. Auto-connect skips
     // these so a manual disconnect sticks while the device is still nearby;
@@ -149,7 +154,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 delay(15_000)
                 val connectedAddresses = _connections.value.keys
                 if (connectedAddresses.isNotEmpty()) {
-                    val now = System.currentTimeMillis()
+                    val now = nowMillis()
                     val updated = _savedDevices.value.map { device ->
                         if (device.address in connectedAddresses)
                             device.copy(lastConnectedAt = now)
@@ -163,8 +168,8 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun log(message: String) {
-        Log.i(TAG, message)
-        val ts = LocalTime.now().format(timeFormat)
+        AppLog.i(TAG, message)
+        val ts = formatTimestamp(nowMillis(), LogTimeFormat)
         _logMessages.update { (it + "[$ts] $message").takeLast(200) }
     }
 
@@ -188,7 +193,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                             colorArgb = obj.long("colorArgb", 0L).takeIf { it != 0L }
                         ))
                     } catch (e: Exception) {
-                        Log.w(TAG, "Skipping unreadable saved device entry", e)
+                        AppLog.w(TAG, "Skipping unreadable saved device entry", e)
                     }
                 }
                 _savedDevices.value = devices.sortedByDescending { it.lastConnectedAt }
@@ -196,7 +201,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 // Whole payload unreadable. Back it up: the in-memory list stays
                 // empty, and the next persist would otherwise overwrite the pref
                 // and silently destroy the user's devices.
-                Log.w(TAG, "Failed to load saved devices — backing up raw payload", e)
+                AppLog.w(TAG, "Failed to load saved devices — backing up raw payload", e)
                 prefs.edit().putString(PREF_SAVED_DEVICES + "_backup", json).apply()
             }
         }
@@ -205,7 +210,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         val oldAddress = prefs.getString("last_device_address", null)
         val oldName = prefs.getString("last_device_name", null)
         if (oldAddress != null && _savedDevices.value.none { it.address == oldAddress }) {
-            val migrated = SavedDevice(oldAddress, oldName ?: "eFugu", null, System.currentTimeMillis())
+            val migrated = SavedDevice(oldAddress, oldName ?: "eFugu", null, nowMillis())
             _savedDevices.value = listOf(migrated) + _savedDevices.value
             persistSavedDevices()
             prefs.edit().remove("last_device_address").remove("last_device_name").apply()
@@ -239,7 +244,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             val old = current.removeAt(existing)
             old.copy(name = name ?: old.name)
         } else {
-            SavedDevice(address, name ?: "eFugu", null, System.currentTimeMillis())
+            SavedDevice(address, name ?: "eFugu", null, nowMillis())
         }
         current.add(0, device)
         _savedDevices.value = current
@@ -292,14 +297,14 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                         lastCalibratedAt = obj.long("lastCalibratedAt", 0L).takeIf { it != 0L }
                     ))
                 } catch (e: Exception) {
-                    Log.w(TAG, "Skipping unreadable user profile entry", e)
+                    AppLog.w(TAG, "Skipping unreadable user profile entry", e)
                 }
             }
             _userProfiles.value = profiles
         } catch (e: Exception) {
             // Whole payload unreadable — back it up so the calibration data is
             // not destroyed by the next persist (see loadSavedDevices).
-            Log.w(TAG, "Failed to load user profiles — backing up raw payload", e)
+            AppLog.w(TAG, "Failed to load user profiles — backing up raw payload", e)
             prefs.edit().putString(PREF_USER_PROFILES + "_backup", json).apply()
         }
     }
@@ -362,12 +367,12 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                         userId = obj.string("userId")
                     ))
                 } catch (e: Exception) {
-                    Log.w(TAG, "Skipping unreadable pairing entry", e)
+                    AppLog.w(TAG, "Skipping unreadable pairing entry", e)
                 }
             }
             _deviceUserPairings.value = pairings
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to load pairings — backing up raw payload", e)
+            AppLog.w(TAG, "Failed to load pairings — backing up raw payload", e)
             prefs.edit().putString(PREF_DEVICE_USER_PAIRINGS + "_backup", json).apply()
         }
     }
@@ -477,7 +482,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
 
         // Find or create saved device entry
         val saved = _savedDevices.value.find { it.address == address }
-            ?: SavedDevice(address, "eFugu", null, System.currentTimeMillis())
+            ?: SavedDevice(address, "eFugu", null, nowMillis())
 
         rememberDevice(saved.name, address)
         // Re-fetch after remember to get updated saved device
@@ -520,7 +525,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
 
         val number = address.removePrefix(MockDeviceConnection.ADDRESS_PREFIX)
         val saved = _savedDevices.value.find { it.address == address }
-            ?: SavedDevice(address, "Simulated $number", null, System.currentTimeMillis())
+            ?: SavedDevice(address, "Simulated $number", null, nowMillis())
 
         rememberDevice(saved.name, address)
         val updatedSaved = _savedDevices.value.find { it.address == address } ?: saved
@@ -562,7 +567,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         val idx = current.indexOfFirst { it.address == address }
         if (idx < 0) return
         val updated = current.toMutableList()
-        updated[idx] = updated[idx].copy(lastConnectedAt = System.currentTimeMillis())
+        updated[idx] = updated[idx].copy(lastConnectedAt = nowMillis())
         _savedDevices.value = updated.sortedByDescending { it.lastConnectedAt }
         persistSavedDevices()
     }
@@ -640,7 +645,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             _recentSessions.value = sessionRepository.loadIndex()
             if (!saved) {
                 log("Failed to save session!")
-                Toast.makeText(getApplication(), "Could not save session", Toast.LENGTH_LONG).show()
+                postUserMessage("Could not save session")
             }
         }
     }
@@ -670,14 +675,14 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                     .openInputStream(uri)?.use { it.readNBytes(MAX_IMPORT_BYTES + 1) }
                     ?: return@withContext null
                 if (bytes.size > MAX_IMPORT_BYTES) {
-                    Log.w(TAG, "Rejecting session import: file exceeds $MAX_IMPORT_BYTES bytes")
+                    AppLog.w(TAG, "Rejecting session import: file exceeds $MAX_IMPORT_BYTES bytes")
                     return@withContext null
                 }
                 org.hubik.openfugu.session.SessionJson.sessionFromJson(
                     Json.parseToJsonElement(bytes.decodeToString()).jsonObject
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to import session from $uri", e)
+                AppLog.w(TAG, "Failed to import session from $uri", e)
                 null
             }
         } ?: return null
@@ -685,6 +690,11 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         _recentSessions.value = sessionRepository.loadIndex()
         log("Imported session: ${session.type} from ${session.deviceName}")
         return session
+    }
+
+    /** Queue a one-shot message for the snackbar at the app root. */
+    fun postUserMessage(message: String) {
+        _userMessages.tryEmit(message)
     }
 
     override fun onCleared() {

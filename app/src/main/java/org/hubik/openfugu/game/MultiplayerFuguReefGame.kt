@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.hypot
 import kotlin.math.sin
+import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
 // Screen composable
@@ -49,7 +50,7 @@ fun MultiplayerFuguReefScreen(
         playerStates = players.map { MultiplayerPlayerState(it, fishY = 0.85f) }
         scrollOffset = 0f
         obstacles = emptyList()
-        gameStartMs = System.currentTimeMillis()
+        gameStartMs = nowMillis()
         gameState = GameState.Playing
     }
 

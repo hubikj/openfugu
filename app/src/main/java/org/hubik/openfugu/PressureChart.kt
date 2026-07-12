@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.PressureReading
 import org.hubik.openfugu.exercise.PeakMarker
 import org.hubik.openfugu.ui.AppColors
+import org.hubik.openfugu.util.formatMinSec
 
 /**
  * Unified pressure chart used across Live tab, calibration wizard, and exercises.
@@ -193,9 +194,7 @@ fun PressureChart(
                 var tickSec = (kotlin.math.ceil(viewLeftSec.coerceAtLeast(0f) / labelStep) * labelStep).toFloat()
                 while (tickSec <= viewRightSec) {
                     val x = w * ((tickSec - viewLeftSec) / windowSec)
-                    val mins = (tickSec / 60f).toInt()
-                    val secs = (tickSec % 60f).toInt()
-                    val label = "%d:%02d".format(mins, secs)
+                    val label = formatMinSec(tickSec.toInt())
                     drawContext.canvas.nativeCanvas.drawText(label, x, xLabelY, textPaint)
                     tickSec += labelStep
                 }
