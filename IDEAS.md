@@ -48,6 +48,20 @@ A loose collection of ideas, not a committed roadmap: some are planned, some are
 
 ---
 
+### Sound & Haptics
+**Goal:** Audio and vibration feedback so games and exercises communicate without the user staring at the screen — useful during equalization training where visual attention is limited.
+
+- [ ] Game sound effects — scoring, collisions, game over (and matching haptic pulses)
+- [ ] Exercise cues — sound/vibration when entering or leaving the target range, on detected equalizations, and on phase changes, so exercises work eyes-free
+- [ ] Countdown ticks and start signals for games and exercises
+- [ ] Settings toggles for sound and haptics separately; respect the system silent mode
+
+**Technical notes:**
+- Playback and vibration are platform APIs — needs an expect/actual abstraction in `shared` (e.g. `SoundPlayer` / `HapticFeedback`) with an Android implementation now and an iOS one later, following the module rule
+- Keep sounds short and bundled as app resources; no downloads
+
+---
+
 ## Needs Multiple Devices
 
 ### Instructor Multi-Device Monitoring
