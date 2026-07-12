@@ -157,6 +157,7 @@ fun EFuguApp(
             appVersion = appVersion,
             onThemeModeChange = { viewModel.updateAppSettings(appSettings.copy(themeMode = it)) },
             onShowSimulatedDevicesChange = { viewModel.updateAppSettings(appSettings.copy(showSimulatedDevices = it)) },
+            onBleBackendChange = { viewModel.updateAppSettings(appSettings.copy(bleBackend = it)) },
             onBack = { showSettings = false }
         )
         return

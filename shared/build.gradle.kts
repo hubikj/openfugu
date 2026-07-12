@@ -29,6 +29,7 @@ kotlin {
             api(compose.materialIconsExtended)
             api(compose.ui)
             api(libs.kotlinx.coroutines.core)
+            api(libs.kable.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
         }

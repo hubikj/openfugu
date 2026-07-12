@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
 package org.hubik.openfugu.ble
 
 import android.Manifest
@@ -22,7 +24,10 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import com.juul.kable.Scanner
+import kotlinx.coroutines.Job
 import org.hubik.openfugu.AppSettings
+import org.hubik.openfugu.BleBackend
 import org.hubik.openfugu.storage.AndroidFileStore
 import org.hubik.openfugu.storage.KeyValueStore
 import org.hubik.openfugu.storage.SharedPrefsStore
@@ -390,10 +395,15 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        scanner = adapter.bluetoothLeScanner
         _scannedDevices.value = emptyList()
         _scanState.value = ScanState.Scanning
 
+        if (_appSettings.value.bleBackend == BleBackend.KABLE) {
+            startKableScan()
+            return
+        }
+
+        scanner = adapter.bluetoothLeScanner
         val filter = ScanFilter.Builder()
             .setServiceUuid(ParcelUuid(EFuguUuids.PRESSURE_SERVICE))
             .build()
@@ -408,12 +418,42 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun stopScan() {
+        kableScanJob?.cancel()
+        kableScanJob = null
         scanner?.stopScan(scanCallback)
         scanner?.stopScan(unfilteredScanCallback)
         if (_scanState.value is ScanState.Scanning) {
             _scanState.value = ScanState.Idle
         }
         log("Scan stopped")
+    }
+
+    private var kableScanJob: Job? = null
+
+    /** Scan through Kable — one unfiltered scan, matched like the two legacy scans combined. */
+    private fun startKableScan() {
+        log("Scanning for eFugu (Kable)...")
+        kableScanJob = viewModelScope.launch {
+            try {
+                Scanner {}.advertisements.collect { adv ->
+                    val name = adv.name
+                    val isEfugu = adv.uuids.contains(org.hubik.openfugu.ble.EFuguIds.authService) ||
+                        name?.let {
+                            it.contains("efugu", ignoreCase = true) ||
+                                it.contains("fugu", ignoreCase = true) ||
+                                it.contains("go2deep", ignoreCase = true)
+                        } == true
+                    if (isEfugu) {
+                        addScannedDevice(ScannedDevice(name, adv.identifier.toString(), adv.rssi))
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log("Kable scan stopped: ${e.message}")
+                _scanState.value = ScanState.Error(e.message ?: "Scan failed")
+            }
+        }
     }
 
     // --- Connection management ---
@@ -453,16 +493,28 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         val updatedSaved = _savedDevices.value.find { it.address == address } ?: saved
 
         val tag = address.takeLast(5)
-        val connection = DeviceConnection(
-            address = address,
-            savedDevice = updatedSaved,
-            context = getApplication(),
-            onLog = { msg -> log("[$tag] $msg") },
-            onUnexpectedDisconnect = { removeConnection(address) }
-        )
-
-        _connections.value = _connections.value + (address to connection)
-        connection.connect(adapter)
+        if (_appSettings.value.bleBackend == BleBackend.KABLE) {
+            val connection = KableDeviceConnection(
+                address = address,
+                identifier = address,
+                savedDevice = updatedSaved,
+                onLog = { msg -> log("[$tag] $msg") },
+                scope = viewModelScope,
+                onUnexpectedDisconnect = { removeConnection(address) }
+            )
+            _connections.value = _connections.value + (address to connection)
+            connection.connect()
+        } else {
+            val connection = DeviceConnection(
+                address = address,
+                savedDevice = updatedSaved,
+                context = getApplication(),
+                onLog = { msg -> log("[$tag] $msg") },
+                onUnexpectedDisconnect = { removeConnection(address) }
+            )
+            _connections.value = _connections.value + (address to connection)
+            connection.connect(adapter)
+        }
     }
 
     /**
@@ -566,12 +618,15 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun addScanResult(result: ScanResult) {
-        val device = ScannedDevice(
+    private fun addScanResult(result: ScanResult) = addScannedDevice(
+        ScannedDevice(
             name = result.device.name,
             address = result.device.address,
             rssi = result.rssi
         )
+    )
+
+    private fun addScannedDevice(device: ScannedDevice) {
         val current = _scannedDevices.value.toMutableList()
         val existing = current.indexOfFirst { it.address == device.address }
         if (existing >= 0) {

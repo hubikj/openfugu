@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.AppSettings
+import org.hubik.openfugu.BleBackend
 import org.hubik.openfugu.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +41,7 @@ fun SettingsScreen(
     appVersion: String,
     onThemeModeChange: (ThemeMode) -> Unit,
     onShowSimulatedDevicesChange: (Boolean) -> Unit,
+    onBleBackendChange: (BleBackend) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(
@@ -87,6 +89,30 @@ fun SettingsScreen(
                 checked = settings.showSimulatedDevices,
                 onCheckedChange = onShowSimulatedDevicesChange
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Bluetooth engine", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Kable is the experimental cross-platform engine; Android is the " +
+                    "proven one. Applies to devices connected from now on.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                BleBackend.entries.forEachIndexed { index, backend ->
+                    SegmentedButton(
+                        selected = settings.bleBackend == backend,
+                        onClick = { onBleBackendChange(backend) },
+                        shape = SegmentedButtonDefaults.itemShape(
+                            index = index,
+                            count = BleBackend.entries.size
+                        )
+                    ) {
+                        Text(backend.label)
+                    }
+                }
+            }
 
             SettingsSectionTitle("About")
             SettingsValueRow("Version", appVersion)

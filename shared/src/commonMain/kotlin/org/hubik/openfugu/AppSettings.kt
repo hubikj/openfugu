@@ -11,14 +11,21 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
 
+/** Which BLE implementation drives real devices (see ble/KableDeviceConnection). */
+enum class BleBackend(val label: String) {
+    ANDROID("Android"), KABLE("Kable")
+}
+
 /** App-level settings — everything user-specific stays on UserProfile instead. */
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val showSimulatedDevices: Boolean = false
+    val showSimulatedDevices: Boolean = false,
+    val bleBackend: BleBackend = BleBackend.ANDROID
 ) {
     fun toJsonString(): String = buildJsonObject {
         put("themeMode", themeMode.name)
         put("showSimulatedDevices", showSimulatedDevices)
+        put("bleBackend", bleBackend.name)
     }.toString()
 
     companion object {
@@ -29,7 +36,10 @@ data class AppSettings(
                 themeMode = obj.stringOrNull("themeMode")
                     ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                     ?: ThemeMode.SYSTEM,
-                showSimulatedDevices = obj.boolean("showSimulatedDevices", false)
+                showSimulatedDevices = obj.boolean("showSimulatedDevices", false),
+                bleBackend = obj.stringOrNull("bleBackend")
+                    ?.let { name -> BleBackend.entries.firstOrNull { it.name == name } }
+                    ?: BleBackend.ANDROID
             )
         } catch (e: Exception) {
             AppSettings()
