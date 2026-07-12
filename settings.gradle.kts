@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "OpenFugu"
 include(":app")
+include(":shared")

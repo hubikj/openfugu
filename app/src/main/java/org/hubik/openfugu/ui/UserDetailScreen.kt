@@ -112,11 +112,11 @@ fun UserDetailScreen(
                         pairedDevices.forEachIndexed { index, device ->
                             if (index > 0) Spacer(modifier = Modifier.height(8.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (device.colorArgb != null) {
+                                device.colorArgb?.let { colorArgb ->
                                     Box(
                                         modifier = Modifier
                                             .size(12.dp)
-                                            .background(Color(device.colorArgb.toInt()), CircleShape)
+                                            .background(Color(colorArgb.toInt()), CircleShape)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }

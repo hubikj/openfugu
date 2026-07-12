@@ -18,18 +18,18 @@ import kotlinx.serialization.json.long
  * getters treat a missing key and an explicit JSON null the same, and
  * getters with a default fall back for keys written by older app versions.
  */
-internal fun JsonObject.string(key: String): String = prim(key).content
-internal fun JsonObject.stringOrNull(key: String): String? = primOrNull(key)?.content
-internal fun JsonObject.long(key: String): Long = prim(key).long
-internal fun JsonObject.longOrNull(key: String): Long? = primOrNull(key)?.long
-internal fun JsonObject.long(key: String, default: Long): Long = primOrNull(key)?.long ?: default
-internal fun JsonObject.int(key: String): Int = prim(key).int
-internal fun JsonObject.double(key: String): Double = prim(key).double
-internal fun JsonObject.doubleOrNull(key: String): Double? = primOrNull(key)?.double
-internal fun JsonObject.double(key: String, default: Double): Double = primOrNull(key)?.double ?: default
-internal fun JsonObject.boolean(key: String): Boolean = prim(key).boolean
-internal fun JsonObject.boolean(key: String, default: Boolean): Boolean = primOrNull(key)?.boolean ?: default
-internal fun JsonObject.array(key: String): JsonArray = getValue(key).jsonArray
+fun JsonObject.string(key: String): String = prim(key).content
+fun JsonObject.stringOrNull(key: String): String? = primOrNull(key)?.content
+fun JsonObject.long(key: String): Long = prim(key).long
+fun JsonObject.longOrNull(key: String): Long? = primOrNull(key)?.long
+fun JsonObject.long(key: String, default: Long): Long = primOrNull(key)?.long ?: default
+fun JsonObject.int(key: String): Int = prim(key).int
+fun JsonObject.double(key: String): Double = prim(key).double
+fun JsonObject.doubleOrNull(key: String): Double? = primOrNull(key)?.double
+fun JsonObject.double(key: String, default: Double): Double = primOrNull(key)?.double ?: default
+fun JsonObject.boolean(key: String): Boolean = prim(key).boolean
+fun JsonObject.boolean(key: String, default: Boolean): Boolean = primOrNull(key)?.boolean ?: default
+fun JsonObject.array(key: String): JsonArray = getValue(key).jsonArray
 
 private fun JsonObject.prim(key: String): JsonPrimitive = getValue(key).jsonPrimitive
 private fun JsonObject.primOrNull(key: String): JsonPrimitive? =

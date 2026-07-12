@@ -642,9 +642,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                     AppLog.w(TAG, "Rejecting session import: file exceeds $MAX_IMPORT_BYTES bytes")
                     return@withContext null
                 }
-                org.hubik.openfugu.session.SessionJson.sessionFromJson(
-                    Json.parseToJsonElement(bytes.decodeToString()).jsonObject
-                )
+                sessionRepository.parseSession(bytes.decodeToString())
             } catch (e: Exception) {
                 AppLog.w(TAG, "Failed to import session from $uri", e)
                 null

@@ -34,6 +34,13 @@ class SessionRepository(private val files: FileStore) {
     private val mutex = Mutex()
     private var cachedIndex: List<SessionIndexEntry>? = null
 
+    /** Parse a session from raw JSON text (file import/share), without saving. */
+    fun parseSession(text: String): Session? = try {
+        SessionJson.sessionFromJson(Json.parseToJsonElement(text).jsonObject)
+    } catch (e: Exception) {
+        null
+    }
+
     /** @return false if the session could not be saved — surface this to the user. */
     suspend fun saveSession(session: Session): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
