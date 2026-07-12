@@ -1,5 +1,6 @@
 package org.hubik.openfugu.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -10,13 +11,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,8 +54,9 @@ import org.hubik.openfugu.ble.formatHPa
  * mock is connected: one vertical pressure slider per simulated device
  * (drag or tap to set pressure, double-tap to zero), a wave toggle per device
  * for hands-free sine patterns, and a shared auto-zero toggle that releases
- * the pressure when the finger lifts. Collapsible to a slim handle at the
- * right edge so it never has to block a game.
+ * the pressure when the finger lifts (manual mode only — wave is disabled
+ * while auto zero is on). Collapsible to a slim handle at the right edge so
+ * it never has to block a game.
  */
 @Composable
 fun MockDeviceOverlay(viewModel: EFuguViewModel) {
@@ -66,6 +68,9 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
 
     var expanded by rememberSaveable { mutableStateOf(true) }
     var autoZero by rememberSaveable { mutableStateOf(false) }
+    val panelColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+    val panelContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val panelBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
 
     Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(
@@ -74,7 +79,9 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
         ) {
             // Collapse handle
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+                color = panelColor,
+                contentColor = panelContentColor,
+                border = panelBorder,
                 shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
                 modifier = Modifier.clickable { expanded = !expanded }
             ) {
@@ -87,18 +94,22 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
             }
             if (expanded) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
-                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp)
+                    color = panelColor,
+                    contentColor = panelContentColor,
+                    border = panelBorder,
+                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp),
+                    // fill = false: take at most the width left next to the
+                    // handle, never push past the screen edge — with many
+                    // simulated devices the slider row scrolls instead.
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Row(
-                            modifier = Modifier
-                                .widthIn(max = 240.dp)
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             mocks.forEach { mock ->
                                 key(mock.address) {
@@ -110,11 +121,18 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
                                 }
                             }
                         }
+                        Spacer(modifier = Modifier.height(10.dp))
                         FilterChip(
                             selected = autoZero,
-                            onClick = { autoZero = !autoZero },
-                            label = { Text("Auto zero", fontSize = 10.sp) },
-                            modifier = Modifier.height(26.dp)
+                            onClick = {
+                                autoZero = !autoZero
+                                // Wave makes no sense with auto zero — the whole
+                                // point is hands-free; switch everything to manual.
+                                if (autoZero) mocks.forEach {
+                                    it.pattern.value = MockDeviceConnection.Pattern.Manual
+                                }
+                            },
+                            label = { Text("Auto zero", fontSize = 11.sp) }
                         )
                     }
                 }
@@ -124,8 +142,9 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
 }
 
 /**
- * One vertical pressure fader: zero at the center, positive pressure up,
- * negative down, spanning ±[MockDeviceConnection.CONTROL_RANGE_HPA].
+ * One vertical pressure fader spanning [MockDeviceConnection.CONTROL_MIN_HPA]..
+ * [MockDeviceConnection.CONTROL_MAX_HPA]; the zero line sits at the matching
+ * (off-center) height.
  */
 @Composable
 private fun MockPressureSlider(
@@ -135,7 +154,6 @@ private fun MockPressureSlider(
 ) {
     val control by mock.controlHPa.collectAsState()
     val pattern by mock.pattern.collectAsState()
-    val range = MockDeviceConnection.CONTROL_RANGE_HPA
     val trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -154,6 +172,7 @@ private fun MockPressureSlider(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.width(44.dp)
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .width(40.dp)
@@ -162,8 +181,7 @@ private fun MockPressureSlider(
                     detectDragGestures(
                         onDrag = { change, _ ->
                             change.consume()
-                            mock.controlHPa.value =
-                                sliderValueForY(change.position.y, size.height, range)
+                            mock.controlHPa.value = sliderValueForY(change.position.y, size.height)
                         },
                         onDragEnd = { if (autoZero) mock.controlHPa.value = 0.0 },
                         onDragCancel = { if (autoZero) mock.controlHPa.value = 0.0 }
@@ -173,17 +191,18 @@ private fun MockPressureSlider(
                     detectTapGestures(
                         onDoubleTap = { mock.controlHPa.value = 0.0 },
                         onTap = { offset ->
-                            mock.controlHPa.value =
-                                sliderValueForY(offset.y, size.height, range)
+                            mock.controlHPa.value = sliderValueForY(offset.y, size.height)
                         }
                     )
                 }
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
+                val min = MockDeviceConnection.CONTROL_MIN_HPA
+                val max = MockDeviceConnection.CONTROL_MAX_HPA
                 val trackWidth = 8.dp.toPx()
                 val trackLeft = (size.width - trackWidth) / 2f
-                val centerY = size.height / 2f
-                val thumbY = (centerY - (control / range) * centerY).toFloat()
+                val zeroY = (size.height * (max / (max - min))).toFloat()
+                val thumbY = (size.height * ((max - control) / (max - min))).toFloat()
 
                 drawRoundRect(
                     color = trackColor,
@@ -194,39 +213,42 @@ private fun MockPressureSlider(
                 // Zero marker
                 drawLine(
                     color = trackColor,
-                    start = Offset(trackLeft - 6.dp.toPx(), centerY),
-                    end = Offset(trackLeft + trackWidth + 6.dp.toPx(), centerY),
+                    start = Offset(trackLeft - 6.dp.toPx(), zeroY),
+                    end = Offset(trackLeft + trackWidth + 6.dp.toPx(), zeroY),
                     strokeWidth = 1.dp.toPx()
                 )
                 // Fill from zero to the current value
                 drawRoundRect(
                     color = color.copy(alpha = 0.7f),
-                    topLeft = Offset(trackLeft, minOf(centerY, thumbY)),
+                    topLeft = Offset(trackLeft, minOf(zeroY, thumbY)),
                     size = androidx.compose.ui.geometry.Size(
                         trackWidth,
-                        kotlin.math.abs(centerY - thumbY)
+                        kotlin.math.abs(zeroY - thumbY)
                     ),
                     cornerRadius = CornerRadius(trackWidth / 2f)
                 )
                 drawCircle(color = color, radius = 10.dp.toPx(), center = Offset(size.width / 2f, thumbY))
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
         FilterChip(
             selected = pattern == MockDeviceConnection.Pattern.SineWave,
+            enabled = !autoZero,
             onClick = {
                 mock.pattern.value =
                     if (pattern == MockDeviceConnection.Pattern.SineWave)
                         MockDeviceConnection.Pattern.Manual
                     else MockDeviceConnection.Pattern.SineWave
             },
-            label = { Text("Wave", fontSize = 10.sp) },
-            modifier = Modifier.height(26.dp)
+            label = { Text("Wave", fontSize = 11.sp) }
         )
     }
 }
 
-/** Map a touch Y inside the track to a pressure value: center = 0, top = +range, bottom = -range. */
-private fun sliderValueForY(y: Float, heightPx: Int, range: Double): Double {
-    val centerY = heightPx / 2.0
-    return ((centerY - y) / centerY * range).coerceIn(-range, range)
+/** Map a touch Y inside the track to a pressure value: top = CONTROL_MAX_HPA, bottom = CONTROL_MIN_HPA. */
+private fun sliderValueForY(y: Float, heightPx: Int): Double {
+    val min = MockDeviceConnection.CONTROL_MIN_HPA
+    val max = MockDeviceConnection.CONTROL_MAX_HPA
+    val fraction = 1.0 - y / heightPx  // 0 at the bottom, 1 at the top
+    return (min + fraction * (max - min)).coerceIn(min, max)
 }

@@ -30,8 +30,10 @@ class MockDeviceConnection(
         const val ADDRESS_PREFIX = "MOCK-"
         fun isMockAddress(address: String) = address.startsWith(ADDRESS_PREFIX)
 
-        /** The overlay slider spans -CONTROL_RANGE_HPA..+CONTROL_RANGE_HPA. */
-        const val CONTROL_RANGE_HPA = 50.0
+        // The overlay slider span. The negative side is deliberately smaller —
+        // negative training ranges are smaller than positive ones in practice.
+        const val CONTROL_MIN_HPA = -25.0
+        const val CONTROL_MAX_HPA = 50.0
         const val SAMPLE_PERIOD_MS = 50L  // 20 Hz, same as the hardware
         const val SINE_PERIOD_MS = 6000L
         /** Sea-level standard pressure; the ingestion pipeline calibrates it away. */
@@ -59,8 +61,8 @@ class MockDeviceConnection(
         _deviceInfo.value = mapOf(
             "Manufacturer" to "OpenFugu",
             "Serial" to address,
-            "Firmware" to "simulated",
-            "Hardware" to "simulated"
+            "Firmware" to "—",
+            "Hardware" to "—"
         )
         onLog("Simulated device started")
         // Main dispatcher: PressureSource state is main-thread confined.
