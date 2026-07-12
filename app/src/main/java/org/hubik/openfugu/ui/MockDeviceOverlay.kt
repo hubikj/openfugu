@@ -77,7 +77,7 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
     if (mocks.isEmpty()) return
 
     var expanded by rememberSaveable { mutableStateOf(true) }
-    var autoZero by rememberSaveable { mutableStateOf(false) }
+    var autoZero by rememberSaveable { mutableStateOf(true) }
     val panelColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
     val panelContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
