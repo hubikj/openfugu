@@ -1144,8 +1144,37 @@ fun DevicesTab(
     onAddMockDevice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    // Forgotten devices are hidden immediately but only committed after the
+    // undo snackbar times out — same pattern as session history deletes.
+    var pendingForgets by remember { mutableStateOf(setOf<String>()) }
+
+    // If the tab leaves composition during the undo window, commit the
+    // pending forgets — otherwise they silently reappear on return.
+    DisposableEffect(Unit) {
+        onDispose { pendingForgets.forEach { onForget(it) } }
+    }
+
+    LaunchedEffect(pendingForgets) {
+        if (pendingForgets.isEmpty()) return@LaunchedEffect
+        val toForget = pendingForgets.toSet()
+        val count = toForget.size
+        val result = snackbarHostState.showSnackbar(
+            message = if (count == 1) "Device forgotten" else "$count devices forgotten",
+            actionLabel = "Undo",
+            duration = SnackbarDuration.Short
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            pendingForgets = pendingForgets - toForget
+        } else {
+            toForget.forEach { onForget(it) }
+            pendingForgets = pendingForgets - toForget
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
@@ -1274,7 +1303,9 @@ fun DevicesTab(
         }
 
         // Saved devices (not currently connected)
-        val disconnectedDevices = savedDevices.filter { !connections.containsKey(it.address) }
+        val disconnectedDevices = savedDevices.filter {
+            !connections.containsKey(it.address) && it.address !in pendingForgets
+        }
         // Re-evaluate freshness every second so stale entries fade out
         val nowMs by produceState(System.currentTimeMillis()) {
             while (true) {
@@ -1305,7 +1336,7 @@ fun DevicesTab(
                         pairedUserId = pairedUserId,
                         isNearby = isNearby,
                         onConnect = { onConnect(device.address) },
-                        onForget = { onForget(device.address) },
+                        onForget = { pendingForgets = pendingForgets + device.address },
                         onNicknameSet = { onNicknameSet(device.address, it) },
                         onColorSet = { onColorSet(device.address, it) },
                         onPairUser = { userId -> onPairUser(device.address, userId) }
@@ -1387,6 +1418,11 @@ fun DevicesTab(
         }
         Spacer(modifier = Modifier.height(8.dp))
     }
+    SnackbarHost(
+        hostState = snackbarHostState,
+        modifier = Modifier.align(Alignment.BottomCenter)
+    )
+    } // Box
 }
 
 @Composable
