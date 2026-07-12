@@ -5,7 +5,6 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.bluetooth.*
 import android.bluetooth.le.*
-import android.content.Context
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
 import androidx.lifecycle.AndroidViewModel
@@ -23,6 +22,9 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import org.hubik.openfugu.storage.AndroidFileStore
+import org.hubik.openfugu.storage.KeyValueStore
+import org.hubik.openfugu.storage.SharedPrefsStore
 import org.hubik.openfugu.util.AppLog
 import org.hubik.openfugu.util.LogTimeFormat
 import org.hubik.openfugu.util.boolean
@@ -96,7 +98,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     private val bluetoothManager =
         application.getSystemService(BluetoothManager::class.java)
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
-    private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val prefs: KeyValueStore = SharedPrefsStore(application, PREFS_NAME)
 
     // --- App-level state ---
     private val _scanState = MutableStateFlow<ScanState>(ScanState.Idle)
@@ -127,7 +129,9 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     val connections = _connections.asStateFlow()
 
     // --- Session recording ---
-    private val sessionRepository = org.hubik.openfugu.session.SessionRepository(getApplication())
+    private val sessionRepository = org.hubik.openfugu.session.SessionRepository(
+        AndroidFileStore(java.io.File(application.filesDir, "sessions"))
+    )
     private val _recentSessions = MutableStateFlow<List<org.hubik.openfugu.session.SessionIndexEntry>>(emptyList())
     val recentSessions = _recentSessions.asStateFlow()
 
@@ -176,7 +180,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     // --- Saved device persistence ---
 
     private fun loadSavedDevices() {
-        val json = prefs.getString(PREF_SAVED_DEVICES, null)
+        val json = prefs.getString(PREF_SAVED_DEVICES)
         if (json != null) {
             try {
                 val arr = Json.parseToJsonElement(json).jsonArray
@@ -202,18 +206,19 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 // empty, and the next persist would otherwise overwrite the pref
                 // and silently destroy the user's devices.
                 AppLog.w(TAG, "Failed to load saved devices — backing up raw payload", e)
-                prefs.edit().putString(PREF_SAVED_DEVICES + "_backup", json).apply()
+                prefs.putString(PREF_SAVED_DEVICES + "_backup", json)
             }
         }
 
         // Migrate old single-device prefs
-        val oldAddress = prefs.getString("last_device_address", null)
-        val oldName = prefs.getString("last_device_name", null)
+        val oldAddress = prefs.getString("last_device_address")
+        val oldName = prefs.getString("last_device_name")
         if (oldAddress != null && _savedDevices.value.none { it.address == oldAddress }) {
             val migrated = SavedDevice(oldAddress, oldName ?: "eFugu", null, nowMillis())
             _savedDevices.value = listOf(migrated) + _savedDevices.value
             persistSavedDevices()
-            prefs.edit().remove("last_device_address").remove("last_device_name").apply()
+            prefs.remove("last_device_address")
+            prefs.remove("last_device_name")
         }
     }
 
@@ -229,7 +234,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        prefs.edit().putString(PREF_SAVED_DEVICES, arr.toString()).apply()
+        prefs.putString(PREF_SAVED_DEVICES, arr.toString())
     }
 
     private fun rememberDevice(name: String?, address: String) {
@@ -276,7 +281,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     // --- User profile persistence ---
 
     private fun loadUserProfiles() {
-        val json = prefs.getString(PREF_USER_PROFILES, null) ?: return
+        val json = prefs.getString(PREF_USER_PROFILES) ?: return
         try {
             val arr = Json.parseToJsonElement(json).jsonArray
             val profiles = mutableListOf<UserProfile>()
@@ -305,7 +310,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             // Whole payload unreadable — back it up so the calibration data is
             // not destroyed by the next persist (see loadSavedDevices).
             AppLog.w(TAG, "Failed to load user profiles — backing up raw payload", e)
-            prefs.edit().putString(PREF_USER_PROFILES + "_backup", json).apply()
+            prefs.putString(PREF_USER_PROFILES + "_backup", json)
         }
     }
 
@@ -326,9 +331,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        prefs.edit()
-            .putString(PREF_USER_PROFILES, arr.toString())
-            .apply()
+        prefs.putString(PREF_USER_PROFILES, arr.toString())
     }
 
     fun addUser(name: String): UserProfile {
@@ -355,7 +358,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     // --- Device-user pairing persistence ---
 
     private fun loadDeviceUserPairings() {
-        val json = prefs.getString(PREF_DEVICE_USER_PAIRINGS, null) ?: return
+        val json = prefs.getString(PREF_DEVICE_USER_PAIRINGS) ?: return
         try {
             val arr = Json.parseToJsonElement(json).jsonArray
             val pairings = mutableListOf<DeviceUserPairing>()
@@ -373,7 +376,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             _deviceUserPairings.value = pairings
         } catch (e: Exception) {
             AppLog.w(TAG, "Failed to load pairings — backing up raw payload", e)
-            prefs.edit().putString(PREF_DEVICE_USER_PAIRINGS + "_backup", json).apply()
+            prefs.putString(PREF_DEVICE_USER_PAIRINGS + "_backup", json)
         }
     }
 
@@ -386,7 +389,7 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-        prefs.edit().putString(PREF_DEVICE_USER_PAIRINGS, arr.toString()).apply()
+        prefs.putString(PREF_DEVICE_USER_PAIRINGS, arr.toString())
     }
 
     fun pairDeviceToUser(deviceAddress: String, userId: String) {
