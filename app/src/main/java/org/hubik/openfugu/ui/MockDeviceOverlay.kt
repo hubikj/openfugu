@@ -135,7 +135,12 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
                                         .find { it.address == mock.address }?.colorArgb
                                         ?.let { Color(it.toInt()) }
                                         ?: MaterialTheme.colorScheme.tertiary
-                                    MockPressureSlider(mock = mock, color = color, autoZero = autoZero)
+                                    MockPressureSlider(
+                                        mock = mock,
+                                        color = color,
+                                        autoZero = autoZero,
+                                        onWaveSelected = { autoZero = false }
+                                    )
                                 }
                             }
                         }
@@ -144,9 +149,9 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
                             selected = autoZero,
                             onClick = {
                                 autoZero = !autoZero
-                                // Turning auto zero on zeroes everything right
-                                // away and drops wave — a hands-free pattern
-                                // contradicts spring-back-to-zero.
+                                // Wave and auto zero are mutually exclusive —
+                                // enabling either turns the other off. Turning
+                                // auto zero on also zeroes everything right away.
                                 if (autoZero) mocks.forEach {
                                     it.pattern.value = MockDeviceConnection.Pattern.Manual
                                     it.controlHPa.value = 0.0
@@ -170,7 +175,8 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
 private fun MockPressureSlider(
     mock: MockDeviceConnection,
     color: Color,
-    autoZero: Boolean
+    autoZero: Boolean,
+    onWaveSelected: () -> Unit
 ) {
     val control by mock.controlHPa.collectAsState()
     val pattern by mock.pattern.collectAsState()
@@ -253,12 +259,13 @@ private fun MockPressureSlider(
         Spacer(modifier = Modifier.height(8.dp))
         FilterChip(
             selected = pattern == MockDeviceConnection.Pattern.SineWave,
-            enabled = !autoZero,
             onClick = {
+                val enablingWave = pattern != MockDeviceConnection.Pattern.SineWave
                 mock.pattern.value =
-                    if (pattern == MockDeviceConnection.Pattern.SineWave)
-                        MockDeviceConnection.Pattern.Manual
-                    else MockDeviceConnection.Pattern.SineWave
+                    if (enablingWave) MockDeviceConnection.Pattern.SineWave
+                    else MockDeviceConnection.Pattern.Manual
+                // Mutual exclusion: wave switches auto zero off
+                if (enablingWave) onWaveSelected()
             },
             label = { Text("Wave", fontSize = 11.sp) }
         )
