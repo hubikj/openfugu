@@ -4,57 +4,62 @@
 
 OpenFugu is an open-source Android app for the eFugu freediving BLE pressure training device. The app connects to one or more eFugu devices via Bluetooth LE, reads real-time nasal pressure data, and provides games, exercises, and visualization tools for equalization training.
 
-The app is built with Kotlin, Jetpack Compose (Material 3), and targets modern Android (API 35+). There are no XML layouts — all UI is Compose.
+The app is built with Kotlin and Compose Multiplatform (Material 3), targeting modern Android (API 35+). There are no XML layouts — all UI is Compose. The code is split into a platform-neutral `shared` module (Kotlin Multiplatform, ready for a future iOS target — see IDEAS.md) and a thin Android `app` module.
 
 ## Project Structure
 
 ```
-app/src/main/java/org/hubik/openfugu/
-├── MainActivity.kt          — Activity, root composable, navigation routing
-├── PressureChart.kt         — Unified chart (pause/zoom/scroll, overlays)
-├── ExercisesTab.kt          — Game/exercise catalog, per-launch device picker, history
-├── UsersTab.kt              — User profile list, paired devices
-├── LogsTab.kt               — Debug log display, copy/save
-│
-├── ble/                     — Pressure sources (BLE layer + simulated)
-│   ├── EFuguViewModel.kt   — Central state management (ViewModel)
-│   ├── PressureSource.kt    — Abstract source: shared ingestion pipeline (calibration, history, chart)
-│   ├── DeviceConnection.kt  — PressureSource over BLE (GATT, auth, notification parsing)
-│   ├── MockDeviceConnection.kt — Simulated PressureSource (20 Hz ticker, slider/sine driven)
-│   ├── EFuguUuids.kt        — BLE service/characteristic UUIDs
-│   ├── UserProfile.kt       — User profile + device-user pairing data classes
-│   ├── PeakDetector.kt      — Peak detection for min EQ calibration
-│   └── SustainedPressureDetector.kt — Sustained hold detection for max pressure
-│
-├── ui/                      — Shared UI components and screens
-│   ├── SharedComponents.kt  — AppColors, StatRow, HpaValueRow, PeakConfirmDialog
-│   ├── CalibrationWizard.kt — Multi-step pressure calibration (4 steps + summary)
-│   ├── UserDetailScreen.kt  — Per-user settings (calibration, range, expert mode, assigned devices)
-│   ├── MockDeviceOverlay.kt — Floating sliders controlling simulated devices (over all screens)
-│   └── theme/               — Material 3 theme (Color, Theme, Type)
-│
-├── session/                 — Session recording and replay
-│   ├── Session.kt           — Data model (sealed class: MinEq, ConstantEq, Game sessions)
-│   ├── SessionJson.kt       — Pure JSON (de)serialization (unit-tested round-trips)
-│   ├── SessionRepository.kt — File I/O: atomic save, load, list, delete (Dispatchers.IO)
-│   └── SessionViewerScreen.kt — Full-screen replay with chart + stats + share
-│
-├── exercise/                — Training exercises
-│   ├── MinEqExercise.kt     — Find minimum equalization pressure
-│   ├── ConstantEqExercise.kt — Maintain pressure in target range
-│   └── RangeTracker.kt      — In-range tracking with activation + grace period
-│
-└── game/                    — Pressure-controlled games
-    ├── GameUtils.kt         — Shared: GameState, calculateTargetY, runFrameLoop, colors, drawing helpers
-    ├── MultiplayerGameUtils.kt — Shared multiplayer plumbing: player info/state, ready check, session save, scoreboards, game-over overlay
-    ├── FuguReefGame.kt      — Obstacle course (dodge gaps)
-    ├── FuguFeastGame.kt     — Eat smaller fish, avoid bigger ones
-    ├── FuguCaveGame.kt      — Navigate through narrowing cave passages
-    ├── FuguFlowGame.kt      — Rhythm game (trace a scrolling target pressure curve)
-    ├── MultiplayerFuguReefGame.kt — Multiplayer reef race (2–7 players, last fugu standing)
-    ├── MultiplayerFuguFeastGame.kt — Multiplayer feast (2–7 players compete for the same fish)
-    └── MultiplayerFuguCaveGame.kt — Multiplayer cave (2–7 players share the cave, last fugu standing)
+shared/                          — Kotlin Multiplatform module (Compose Multiplatform)
+├── src/commonMain/kotlin/org/hubik/openfugu/
+│   ├── AppSettings.kt           — app-level settings model (theme, developer options)
+│   ├── PressureChart.kt         — Unified chart (pause/zoom/scroll, overlays)
+│   ├── DeviceCard.kt            — Device card (used by Live and Devices tabs)
+│   ├── ExercisesTab.kt          — Game/exercise catalog, per-launch device picker, history
+│   ├── DevicesTab.kt            — Scan/connect UI, saved devices, device picker/edit dialogs
+│   ├── UsersTab.kt              — User profile list, paired devices
+│   ├── LogsTab.kt               — Debug log display, copy/save
+│   │
+│   ├── ble/                     — Pressure sources and BLE-independent device model
+│   │   ├── Models.kt            — ScannedDevice, SavedDevice, PressureReading, ScanState, DeviceColors
+│   │   ├── PressureSource.kt    — Abstract source: shared ingestion pipeline (calibration, history, chart)
+│   │   ├── KableDeviceConnection.kt — PressureSource over Kable (multiplatform BLE)
+│   │   ├── MockDeviceConnection.kt — Simulated PressureSource (20 Hz ticker, slider/sine driven)
+│   │   ├── EFuguIds.kt          — BLE service/characteristic UUIDs (kotlin.uuid)
+│   │   ├── UserProfile.kt       — User profile + device-user pairing data classes
+│   │   ├── PeakDetector.kt      — Peak detection for min EQ calibration
+│   │   └── SustainedPressureDetector.kt — Sustained hold detection for max pressure
+│   │
+│   ├── session/                 — Session recording (platform-free)
+│   │   ├── Session.kt           — Data model (sealed class: MinEq, ConstantEq, Game sessions)
+│   │   ├── SessionJson.kt       — Pure JSON (de)serialization (unit-tested round-trips)
+│   │   └── SessionRepository.kt — Save/load/list/delete over the FileStore interface
+│   │
+│   ├── exercise/                — Training exercises (MinEq, ConstantEq, RangeTracker)
+│   ├── game/                    — All games + GameUtils/MultiplayerGameUtils
+│   ├── storage/Stores.kt        — KeyValueStore + FileStore interfaces
+│   ├── ui/                      — SharedComponents (AppColors, rows, dialogs),
+│   │   │                          CanvasText (portable canvas text), SettingsScreen
+│   │   └── theme/               — Color.kt, Type.kt (Theme.kt itself is Android-side)
+│   └── util/                    — fmt/formatMinSec, JSON accessors, time formats,
+│                                  nowMillis, AppLog (expect)
+├── src/androidMain/kotlin/…     — SharedPrefsStore, AndroidFileStore, AppLog (actual)
+└── src/androidHostTest/kotlin/… — all unit tests (JVM)
+
+app/                             — Android application shell
+└── src/main/java/org/hubik/openfugu/
+    ├── MainActivity.kt          — Activity: permissions, import intents, theme, overlays
+    ├── EFuguApp.kt              — Root composable: tab scaffold, full-screen routing
+    ├── LiveTab.kt               — Live tab panels (ViewModel-driven)
+    ├── ble/
+    │   ├── EFuguViewModel.kt    — Central state management (AndroidViewModel, scanning)
+    │   ├── DeviceConnection.kt  — Legacy PressureSource over Android BluetoothGatt
+    │   └── EFuguUuids.kt        — java.util.UUID copies of EFuguIds for the legacy stack
+    ├── session/SessionViewerScreen.kt — Full-screen replay (share via FileProvider)
+    └── ui/                      — MockDeviceOverlay, UserDetailScreen, CalibrationWizard,
+        └── theme/Theme.kt       — Material theme with Android dynamic color
 ```
+
+**Module rule:** anything that imports `android.*` (or needs `EFuguViewModel`) lives in `app`; everything else goes to `shared/commonMain`. Platform needs of common code are expressed as interfaces (`storage/Stores.kt`), `expect`/`actual` (`util/AppLog.kt`), or constructor-injected lambdas (log saving, session import).
 
 ## Data Flow
 
@@ -62,10 +67,11 @@ app/src/main/java/org/hubik/openfugu/
 
 ```
 eFugu device (BLE notification,     MockDeviceConnection ticker
-ASCII Pascals, ~20 Hz)              (20 Hz coroutine on Dispatchers.Main,
-  ↓  (GATT callbacks are            slider/sine target + low-pass + noise)
-  Handler-confined to the             ↓
-  main thread; parse ASCII,           ↓
+ASCII Pascals, ~20 Hz, via          (20 Hz coroutine on Dispatchers.Main,
+DeviceConnection OR                 slider/sine target + low-pass + noise)
+KableDeviceConnection —               ↓
+see "Bluetooth engine" below)         ↓
+  ↓  (parse ASCII,                    ↓
   finite values only)                 ↓
   └────────────→ PressureSource.ingestPressureHPa() ←──────────┘
   ↓ auto-calibrate ambient baseline (first 20 samples), subtract → relativeHPa
@@ -103,6 +109,8 @@ is specified platform-neutrally in [SPEC.md](SPEC.md).
 | `scanState` | `ScanState` | In-memory only |
 | `scannedDevices` | `List<ScannedDevice>` | In-memory only |
 | `logMessages` | `List<String>` | In-memory only |
+| `appSettings` | `AppSettings` | SharedPreferences (JSON) |
+| `userMessages` | `SharedFlow<String>` | One-shot snackbar messages (shown by MainActivity's root host) |
 
 Each `PressureSource` (BLE `DeviceConnection` or simulated `MockDeviceConnection`) owns its own state:
 
@@ -123,6 +131,7 @@ The app uses a flat navigation model — no navigation library. Full-screen rout
 ```
 EFuguApp {
   if (showLogs)           → full-screen LogsTab with back button
+  if (showSettings)       → full-screen SettingsScreen
   if (showUserDetail)     → full-screen UserDetailScreen
   if (viewingSessionId)   → full-screen SessionViewerScreen
   if (calibratingUserId)  → full-screen CalibrationWizard
@@ -133,9 +142,12 @@ EFuguApp {
 
 Bottom tabs: **Live** | **Exercises** | **Devices** | **Users**
 
-Logs are accessible from the top-right icon on the main screen. The Logs
-screen header shows the app version (from `BuildConfig`), and the version is
-also the first line logged on startup so it rides along in copied logs.
+Logs and Settings are accessible from top-right icons on the main screen.
+The Logs screen header shows the app version (passed down from
+`BuildConfig`), and the version is also the first line logged on startup so
+it rides along in copied logs. Settings hold the theme (System/Light/Dark),
+developer options (show simulated devices, Bluetooth engine), and the About
+links; they persist as JSON under the `app_settings_json` preference key.
 
 ### First-run guidance
 
@@ -163,7 +175,13 @@ files are rejected with a toast.
 `connections` is a `Map<String, PressureSource>` — every device has independent state. The UI adapts: single device = full panel, multiple = scrollable compact cards.
 
 ### Pressure sources are abstract
-Everything above the BLE layer depends on `PressureSource`, never on `DeviceConnection` directly. The base class owns the ingestion pipeline (ambient auto-calibration, history ring buffer, chart snapshots, running extremes — unit-tested in `PressureSourceTest`), so both sources behave identically downstream. `MockDeviceConnection` (addresses `MOCK-1`, `MOCK-2`, …) is a simulated source: added from an unobtrusive button at the bottom of the Devices tab, saved and user-paired like real hardware, driven by floating sliders (`MockDeviceOverlay`, mounted in `MainActivity` above `EFuguApp` so it draws over every screen including games) with a per-device sine-wave mode for hands-free demos. Simulated devices need no Bluetooth at all — the app is fully explorable on the emulator, including multiplayer games with several mocks. This extraction is also the first M0 step toward Kotlin Multiplatform (see IDEAS.md).
+Everything above the BLE layer depends on `PressureSource`, never on a concrete connection class directly. The base class owns the ingestion pipeline (ambient auto-calibration, history ring buffer, chart snapshots, running extremes — unit-tested in `PressureSourceTest`), so both sources behave identically downstream. `MockDeviceConnection` (addresses `MOCK-1`, `MOCK-2`, …) is a simulated source: added from an unobtrusive button at the bottom of the Devices tab, saved and user-paired like real hardware, driven by floating sliders (`MockDeviceOverlay`, mounted in `MainActivity` above `EFuguApp` so it draws over every screen including games) with a per-device sine-wave mode for hands-free demos. Simulated devices need no Bluetooth at all — the app is fully explorable on the emulator, including multiplayer games with several mocks. The app is fully explorable on the emulator, including multiplayer games with several mocks. The "Add simulated device" button is gated behind the settings toggle "Show simulated devices".
+
+### Two Bluetooth engines
+Real devices connect through one of two `PressureSource` implementations, selected by the "Bluetooth engine" developer setting (applies to new connections):
+- **Android** (default): `DeviceConnection` in the app module — the proven BluetoothGatt implementation (MTU 517, main-thread-confined GATT callbacks).
+- **Kable**: `KableDeviceConnection` in shared commonMain over the Kable multiplatform BLE library — the bring-up path for iOS. Scanning switches with it (one unfiltered Kable scan replaces the two legacy scans).
+Both run the same sequence: subscribe pressure/battery notifications, read device info, send the 128-byte auth challenge (see PROTOCOL.md).
 
 ### User ≠ Device
 Users (profiles with calibration data) and devices (BLE hardware) are separate entities linked by `DeviceUserPairing`. One user can be paired to multiple devices. In a group setting, an instructor can quickly reassign users to different devices via the device picker.
@@ -185,12 +203,14 @@ The Exercises tab has no separate multiplayer section. Each game/exercise is one
 
 ## Persistence
 
-**SharedPreferences (JSON strings)** — small, frequently accessed data:
+All JSON is written and parsed with kotlinx.serialization's `JsonElement` API behind org.json-style accessors (`util/Json.kt`); the on-disk schema predates that switch and is guarded by round-trip and legacy-file tests.
+
+**SharedPreferences via `KeyValueStore` (JSON strings)** — small, frequently accessed data:
 - `SavedDevice` — address, name, nickname, color, lastConnectedAt
 - `UserProfile` — calibration data, game range settings, expert mode
 - `DeviceUserPairing` — device address ↔ user ID
 
-**File storage** (`context.filesDir/sessions/`) — large session recordings:
+**File storage via `FileStore`** (`context.filesDir/sessions/`) — large session recordings:
 - One JSON file per session (`session_{id}.json`) with full pressure trace
 - Index file (`sessions_index.json`) for fast listing without loading traces
 - Writes are atomic (temp file + rename); all I/O runs on Dispatchers.IO behind a
@@ -211,11 +231,13 @@ Key points:
 
 ## Technology Stack
 
-- **Language:** Kotlin
-- **UI:** Jetpack Compose + Material 3
+- **Language:** Kotlin (Multiplatform: `shared` commonMain/androidMain + Android `app`)
+- **UI:** Compose Multiplatform + Material 3 (dynamic color on Android)
 - **State:** StateFlow (Kotlin Coroutines)
-- **Storage:** SharedPreferences with JSON (org.json)
-- **BLE:** Android BluetoothManager / BluetoothGatt
-- **Lifecycle:** AndroidViewModel
+- **Serialization:** kotlinx.serialization (JSON)
+- **Dates/times:** kotlinx-datetime
+- **Storage:** SharedPreferences + files behind `KeyValueStore`/`FileStore`
+- **BLE:** Android BluetoothManager/BluetoothGatt (default) or Kable (multiplatform), switchable in settings
+- **Lifecycle:** AndroidViewModel (app module)
 - **Min SDK:** 35 (Android 15)
-- **Build:** Gradle with Kotlin DSL
+- **Build:** Gradle with Kotlin DSL; AGP 9.1 + `com.android.kotlin.multiplatform.library` + Compose Multiplatform plugin
