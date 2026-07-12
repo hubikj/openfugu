@@ -1,6 +1,5 @@
 package org.hubik.openfugu.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,11 +37,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.EFuguViewModel
@@ -70,20 +74,22 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
     var autoZero by rememberSaveable { mutableStateOf(false) }
     val panelColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
     val panelContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val panelBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
 
     Box(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Collapse handle
+            // Collapse handle. Its right side touches the panel (or the screen
+            // edge when collapsed), so the border leaves that edge open.
             Surface(
                 color = panelColor,
                 contentColor = panelContentColor,
-                border = panelBorder,
                 shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
-                modifier = Modifier.clickable { expanded = !expanded }
+                modifier = Modifier
+                    .clickable { expanded = !expanded }
+                    .borderExceptEnd(borderColor, 1.dp, 12.dp)
             ) {
                 Icon(
                     if (expanded) Icons.Filled.ChevronRight else Icons.Filled.ChevronLeft,
@@ -93,15 +99,18 @@ fun MockDeviceOverlay(viewModel: EFuguViewModel) {
                 )
             }
             if (expanded) {
+                // The panel sits flush against the screen edge: square right
+                // corners, no border on the right edge.
                 Surface(
                     color = panelColor,
                     contentColor = panelContentColor,
-                    border = panelBorder,
-                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp, bottomEnd = 12.dp),
+                    shape = RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp),
                     // fill = false: take at most the width left next to the
-                    // handle, never push past the screen edge — with many
-                    // simulated devices the slider row scrolls instead.
-                    modifier = Modifier.weight(1f, fill = false)
+                    // handle, never push past the screen edge — on screens too
+                    // narrow for every slider the row scrolls instead.
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .borderExceptEnd(borderColor, 1.dp, 12.dp)
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
@@ -244,6 +253,30 @@ private fun MockPressureSlider(
         )
     }
 }
+
+/**
+ * Stroke along the top edge, the rounded start corners, and the bottom edge —
+ * the end (right) edge stays open, because it touches either the control panel
+ * or the screen edge and a line there would double up.
+ */
+private fun Modifier.borderExceptEnd(color: Color, strokeWidth: Dp, cornerRadius: Dp): Modifier =
+    drawWithContent {
+        drawContent()
+        val half = strokeWidth.toPx() / 2f
+        val r = cornerRadius.toPx()
+        val path = Path().apply {
+            moveTo(size.width, half)
+            lineTo(r + half, half)
+            arcTo(Rect(half, half, half + 2 * r, half + 2 * r), 270f, -90f, false)
+            lineTo(half, size.height - r - half)
+            arcTo(
+                Rect(half, size.height - half - 2 * r, half + 2 * r, size.height - half),
+                180f, -90f, false
+            )
+            lineTo(size.width, size.height - half)
+        }
+        drawPath(path, color, style = Stroke(strokeWidth.toPx()))
+    }
 
 /** Map a touch Y inside the track to a pressure value: top = CONTROL_MAX_HPA, bottom = CONTROL_MIN_HPA. */
 private fun sliderValueForY(y: Float, heightPx: Int): Double {

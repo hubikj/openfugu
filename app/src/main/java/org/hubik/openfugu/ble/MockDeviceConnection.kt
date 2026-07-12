@@ -30,6 +30,10 @@ class MockDeviceConnection(
         const val ADDRESS_PREFIX = "MOCK-"
         fun isMockAddress(address: String) = address.startsWith(ADDRESS_PREFIX)
 
+        // Cap so the control overlay stays usable: five slider columns still
+        // fit next to the collapse handle on a 360 dp-wide screen.
+        const val MAX_MOCK_DEVICES = 5
+
         // The overlay slider span. The negative side is deliberately smaller —
         // negative training ranges are smaller than positive ones in practice.
         const val CONTROL_MIN_HPA = -25.0

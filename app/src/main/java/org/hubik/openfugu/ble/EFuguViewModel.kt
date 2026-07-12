@@ -495,6 +495,10 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
             .filter { MockDeviceConnection.isMockAddress(it.address) }
             .mapNotNull { it.address.removePrefix(MockDeviceConnection.ADDRESS_PREFIX).toIntOrNull() }
             .toSet()
+        if (used.size >= MockDeviceConnection.MAX_MOCK_DEVICES) {
+            log("Simulated device limit reached (${MockDeviceConnection.MAX_MOCK_DEVICES})")
+            return
+        }
         val number = generateSequence(1) { it + 1 }.first { it !in used }
         connectMockDevice("${MockDeviceConnection.ADDRESS_PREFIX}$number")
     }

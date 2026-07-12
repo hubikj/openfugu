@@ -1357,15 +1357,22 @@ fun DevicesTab(
         // Simulated device entry — deliberately unobtrusive. It lets the app
         // be explored without eFugu hardware (development, demos, curiosity),
         // but it is not a path we advertise to new users.
+        val canAddMockDevice = savedDevices.count {
+            MockDeviceConnection.isMockAddress(it.address)
+        } < MockDeviceConnection.MAX_MOCK_DEVICES
         Spacer(modifier = Modifier.height(24.dp))
         TextButton(
             onClick = onAddMockDevice,
+            enabled = canAddMockDevice,
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
             Text(
                 "Add simulated device",
                 fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                // When disabled, fall back to the button's greyed content color
+                color = if (canAddMockDevice)
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                else Color.Unspecified
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
