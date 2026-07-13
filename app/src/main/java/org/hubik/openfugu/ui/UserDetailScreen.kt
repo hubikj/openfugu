@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ble.EFuguViewModel
+import org.hubik.openfugu.ble.MockDeviceConnection
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.util.fmt
 
@@ -33,6 +34,7 @@ fun UserDetailScreen(
     val userProfiles by viewModel.userProfiles.collectAsState()
     val savedDevices by viewModel.savedDevices.collectAsState()
     val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
+    val appSettings by viewModel.appSettings.collectAsState()
     val profile = userProfiles.find { it.id == userId }
 
     if (profile == null) {
@@ -102,6 +104,7 @@ fun UserDetailScreen(
                     val pairedDevices = deviceUserPairings
                         .filter { it.userId == profile.id }
                         .mapNotNull { pairing -> savedDevices.find { it.address == pairing.deviceAddress } }
+                        .filter { appSettings.showSimulatedDevices || !MockDeviceConnection.isMockAddress(it.address) }
                     if (pairedDevices.isEmpty()) {
                         Text(
                             "No device assigned.",

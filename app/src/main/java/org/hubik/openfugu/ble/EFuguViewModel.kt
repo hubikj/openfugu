@@ -715,8 +715,16 @@ class EFuguViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateAppSettings(settings: AppSettings) {
+        val hidingSimulated = _appSettings.value.showSimulatedDevices && !settings.showSimulatedDevices
         _appSettings.value = settings
         prefs.putString(PREF_APP_SETTINGS, settings.toJsonString())
+        if (hidingSimulated) {
+            // Simulated devices are hidden app-wide while disabled — a mock
+            // left connected would still surface on the Live tab and overlay.
+            _connections.value.keys
+                .filter { MockDeviceConnection.isMockAddress(it) }
+                .forEach { disconnectDevice(it) }
+        }
     }
 
     override fun onCleared() {

@@ -55,9 +55,16 @@ fun DevicesTab(
     onColorSet: (String, Long?) -> Unit,
     onPairUser: (String, String?) -> Unit,
     onAddMockDevice: () -> Unit,
-    showAddSimulatedDevice: Boolean = false,
+    showSimulatedDevices: Boolean = false,
     modifier: Modifier = Modifier
 ) {
+    // While simulated devices are disabled in settings, saved ones are
+    // hidden here (and the ViewModel disconnects any connected ones) — they
+    // come back when the setting is re-enabled.
+    val visibleSavedDevices =
+        if (showSimulatedDevices) savedDevices
+        else savedDevices.filterNot { MockDeviceConnection.isMockAddress(it.address) }
+
     val snackbarHostState = remember { SnackbarHostState() }
     // Forgotten devices are hidden immediately but only committed after the
     // undo snackbar times out — same pattern as session history deletes.
@@ -94,7 +101,7 @@ fun DevicesTab(
             .verticalScroll(rememberScrollState())
     ) {
         // First-run welcome: no device has ever been saved
-        if (savedDevices.isEmpty()) {
+        if (visibleSavedDevices.isEmpty()) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -146,7 +153,7 @@ fun DevicesTab(
         }
 
         // Connecting devices
-        val connectingDevices = savedDevices.filter { device ->
+        val connectingDevices = visibleSavedDevices.filter { device ->
             connectionStates[device.address] is DeviceConnectionState.Connecting
         }
         if (connectingDevices.isNotEmpty()) {
@@ -182,7 +189,7 @@ fun DevicesTab(
         }
 
         // Connected devices (fully connected, past the Connecting state)
-        val connectedDevices = savedDevices.filter { device ->
+        val connectedDevices = visibleSavedDevices.filter { device ->
             connectionStates[device.address]?.let { it !is DeviceConnectionState.Connecting } == true
         }
         if (connectedDevices.isNotEmpty()) {
@@ -217,7 +224,7 @@ fun DevicesTab(
         }
 
         // Saved devices (not currently connected)
-        val disconnectedDevices = savedDevices.filter {
+        val disconnectedDevices = visibleSavedDevices.filter {
             !connections.containsKey(it.address) && it.address !in pendingForgets
         }
         // Re-evaluate freshness every second so stale entries fade out
@@ -262,7 +269,7 @@ fun DevicesTab(
 
         // Scanned devices (new ones not in saved list)
         if (scanState is ScanState.Scanning && scannedDevices.isNotEmpty()) {
-            val savedAddresses = savedDevices.map { it.address }.toSet()
+            val savedAddresses = visibleSavedDevices.map { it.address }.toSet()
             val newDevices = scannedDevices.filter { it.address !in savedAddresses }
             if (newDevices.isNotEmpty()) {
                 Text(
@@ -299,7 +306,7 @@ fun DevicesTab(
         }
 
         // Hint when empty
-        if (savedDevices.isEmpty() && scanState is ScanState.Idle) {
+        if (visibleSavedDevices.isEmpty() && scanState is ScanState.Idle) {
             Spacer(modifier = Modifier.height(48.dp))
             Text(
                 "Tap Scan to find your eFugu device",
@@ -312,7 +319,7 @@ fun DevicesTab(
         // Simulated device entry — hidden until enabled in settings. It lets
         // the app be explored without eFugu hardware (development, demos,
         // curiosity), but it is not a path we advertise to new users.
-        if (showAddSimulatedDevice) {
+        if (showSimulatedDevices) {
             val canAddMockDevice = savedDevices.count {
                 MockDeviceConnection.isMockAddress(it.address)
             } < MockDeviceConnection.MAX_MOCK_DEVICES

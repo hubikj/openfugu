@@ -441,7 +441,7 @@ fun EFuguApp(
                     else viewModel.unpairDevice(addr)
                 },
                 onAddMockDevice = { viewModel.addMockDevice() },
-                showAddSimulatedDevice = appSettings.showSimulatedDevices,
+                showSimulatedDevices = appSettings.showSimulatedDevices,
                 modifier = Modifier.padding(padding)
             )
             3 -> UsersTab(

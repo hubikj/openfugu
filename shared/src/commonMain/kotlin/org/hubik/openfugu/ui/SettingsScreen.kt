@@ -84,8 +84,9 @@ fun SettingsScreen(
             SettingsSectionTitle("Developer")
             SettingsToggleRow(
                 title = "Show simulated devices",
-                description = "Adds a button on the Devices tab that creates simulated " +
-                    "devices, so the app can be explored without eFugu hardware.",
+                description = "Simulated devices let the app be explored without eFugu " +
+                    "hardware. Turning this off hides saved simulated devices and " +
+                    "disconnects any connected ones.",
                 checked = settings.showSimulatedDevices,
                 onCheckedChange = onShowSimulatedDevicesChange
             )
