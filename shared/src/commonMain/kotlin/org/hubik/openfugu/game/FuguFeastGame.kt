@@ -1,5 +1,6 @@
 package org.hubik.openfugu.game
 
+import kotlin.random.Random
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -174,21 +175,21 @@ fun FuguFeastScreen(
                 enemySpawnTimer = 0f
 
                 // Size distribution: bigger fish always possible, more frequent with score
-                val sizeRoll = Math.random().toFloat()
+                val sizeRoll = Random.nextFloat()
                 val bigChance = (0.3f + score * 0.005f).coerceAtMost(0.6f)
                 val maxEnemy = FEAST_ENEMY_MAX_RADIUS_DP  // capped but always > max player
                 val enemyRadius = if (sizeRoll < bigChance) {
                     // Bigger than player
-                    playerRadius * (1.1f + Math.random().toFloat() * 0.7f)
+                    playerRadius * (1.1f + Random.nextFloat() * 0.7f)
                 } else {
                     // Smaller than player (safe to eat)
-                    FEAST_ENEMY_MIN_RADIUS_DP + Math.random().toFloat() *
+                    FEAST_ENEMY_MIN_RADIUS_DP + Random.nextFloat() *
                             (playerRadius - FEAST_ENEMY_MIN_RADIUS_DP).coerceAtLeast(3f)
                 }.coerceIn(FEAST_ENEMY_MIN_RADIUS_DP, maxEnemy)
 
-                val y = 0.08f + Math.random().toFloat() * 0.76f  // avoid seabed
+                val y = 0.08f + Random.nextFloat() * 0.76f  // avoid seabed
                 // Speed must be >= scroll speed so fish never go backwards
-                val speed = baseSpeed * (1.0f + Math.random().toFloat() * 0.6f)
+                val speed = baseSpeed * (1.0f + Random.nextFloat() * 0.6f)
 
                 updatedEnemies.add(
                     EnemyFish(
@@ -210,9 +211,9 @@ fun FuguFeastScreen(
             rockSpawnTimer += clampedDt
             if (rockSpawnTimer >= FEAST_ROCK_SPAWN_INTERVAL) {
                 rockSpawnTimer = 0f
-                val rockHeight = FEAST_ROCK_MIN_HEIGHT_DP + Math.random().toFloat() *
+                val rockHeight = FEAST_ROCK_MIN_HEIGHT_DP + Random.nextFloat() *
                         (FEAST_ROCK_MAX_HEIGHT_DP - FEAST_ROCK_MIN_HEIGHT_DP)
-                val rockWidth = FEAST_ROCK_WIDTH_DP * (0.6f + Math.random().toFloat() * 0.8f)
+                val rockWidth = FEAST_ROCK_WIDTH_DP * (0.6f + Random.nextFloat() * 0.8f)
                 updatedRocks.add(FeastRock(x = screenWDp + rockWidth, height = rockHeight, width = rockWidth))
             }
             rocks = updatedRocks

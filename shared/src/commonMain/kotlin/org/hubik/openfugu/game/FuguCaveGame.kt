@@ -1,5 +1,6 @@
 package org.hubik.openfugu.game
 
+import kotlin.random.Random
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -73,8 +74,8 @@ data class CaveSegment(
 /** Generate the next cave segment with momentum-biased random walks. */
 private fun nextSegment(prev: CaveSegment, score: Int): CaveSegment {
     // Random component + momentum from previous direction
-    val ceilRandom = (Math.random().toFloat() - 0.5f) * 2f * CAVE_DRIFT
-    val floorRandom = (Math.random().toFloat() - 0.5f) * 2f * CAVE_DRIFT
+    val ceilRandom = (Random.nextFloat() - 0.5f) * 2f * CAVE_DRIFT
+    val floorRandom = (Random.nextFloat() - 0.5f) * 2f * CAVE_DRIFT
     val ceilDelta = ceilRandom * (1f - MOMENTUM) + prev.prevCeilDelta * MOMENTUM
     val floorDelta = floorRandom * (1f - MOMENTUM) + prev.prevFloorDelta * MOMENTUM
 

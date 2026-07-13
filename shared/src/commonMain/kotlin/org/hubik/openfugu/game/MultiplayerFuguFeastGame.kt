@@ -1,5 +1,6 @@
 package org.hubik.openfugu.game
 
+import kotlin.random.Random
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -142,22 +143,22 @@ fun MultiplayerFuguFeastScreen(
                 val minAliveRadius = alivePlayers.minOf { it.radius }
                 val maxAliveRadius = alivePlayers.maxOf { it.radius }
                 val bigChance = (0.3f + maxAliveScore * 0.005f).coerceAtMost(0.6f)
-                val isPredator = Math.random().toFloat() < bigChance
+                val isPredator = Random.nextFloat() < bigChance
                 val enemyRadius = if (isPredator) {
                     // Bigger than every alive player. The cap cannot invert
                     // the relation: players cap at 50 dp, so the minimum
                     // predator size (57.5 dp) stays below the 70 dp cap.
-                    (maxAliveRadius * (PREDATOR_MIN_FACTOR + Math.random().toFloat() * 0.5f))
+                    (maxAliveRadius * (PREDATOR_MIN_FACTOR + Random.nextFloat() * 0.5f))
                         .coerceAtMost(FEAST_ENEMY_MAX_RADIUS_DP)
                 } else {
                     // Up to the smallest alive player's size, as in single player
-                    FEAST_ENEMY_MIN_RADIUS_DP + Math.random().toFloat() *
+                    FEAST_ENEMY_MIN_RADIUS_DP + Random.nextFloat() *
                             (minAliveRadius - FEAST_ENEMY_MIN_RADIUS_DP)
                 }
 
-                val y = 0.08f + Math.random().toFloat() * 0.76f  // avoid seabed
+                val y = 0.08f + Random.nextFloat() * 0.76f  // avoid seabed
                 // Speed must be >= scroll speed so fish never go backwards
-                val speed = baseSpeed * (1.0f + Math.random().toFloat() * 0.6f)
+                val speed = baseSpeed * (1.0f + Random.nextFloat() * 0.6f)
 
                 updatedEnemies.add(
                     FeastEnemy(
@@ -180,9 +181,9 @@ fun MultiplayerFuguFeastScreen(
             rockSpawnTimer += clampedDt
             if (rockSpawnTimer >= FEAST_ROCK_SPAWN_INTERVAL) {
                 rockSpawnTimer = 0f
-                val rockHeight = FEAST_ROCK_MIN_HEIGHT_DP + Math.random().toFloat() *
+                val rockHeight = FEAST_ROCK_MIN_HEIGHT_DP + Random.nextFloat() *
                         (FEAST_ROCK_MAX_HEIGHT_DP - FEAST_ROCK_MIN_HEIGHT_DP)
-                val rockWidth = FEAST_ROCK_WIDTH_DP * (0.6f + Math.random().toFloat() * 0.8f)
+                val rockWidth = FEAST_ROCK_WIDTH_DP * (0.6f + Random.nextFloat() * 0.8f)
                 updatedRocks.add(FeastRock(x = screenWDp + rockWidth, height = rockHeight, width = rockWidth))
             }
             rocks = updatedRocks

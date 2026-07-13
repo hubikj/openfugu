@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package org.hubik.openfugu.storage
 
 import platform.Foundation.NSFileManager

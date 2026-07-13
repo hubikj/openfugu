@@ -1,6 +1,6 @@
 package org.hubik.openfugu.session
 
-import kotlinx.coroutines.Dispatchers
+import org.hubik.openfugu.util.IoDispatcher
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -15,7 +15,7 @@ import org.hubik.openfugu.util.AppLog
 /**
  * Stores one JSON file per session plus a lightweight index file.
  *
- * All file access runs on Dispatchers.IO; writers are serialized by a mutex.
+ * All file access runs on IoDispatcher; writers are serialized by a mutex.
  * Files are written atomically (temp file + rename via [FileStore]) so a
  * process death mid-write can never leave a truncated session or index
  * behind. The parsed index is cached in memory to avoid re-reading it on
@@ -42,7 +42,7 @@ class SessionRepository(private val files: FileStore) {
     }
 
     /** @return false if the session could not be saved — surface this to the user. */
-    suspend fun saveSession(session: Session): Boolean = withContext(Dispatchers.IO) {
+    suspend fun saveSession(session: Session): Boolean = withContext(IoDispatcher) {
         mutex.withLock {
             try {
                 val json = SessionJson.sessionToJson(session)
@@ -57,11 +57,11 @@ class SessionRepository(private val files: FileStore) {
         }
     }
 
-    suspend fun loadIndex(): List<SessionIndexEntry> = withContext(Dispatchers.IO) {
+    suspend fun loadIndex(): List<SessionIndexEntry> = withContext(IoDispatcher) {
         mutex.withLock { loadIndexLocked() }
     }
 
-    suspend fun loadSession(id: String): Session? = withContext(Dispatchers.IO) {
+    suspend fun loadSession(id: String): Session? = withContext(IoDispatcher) {
         val text = files.readText(fileName(id)) ?: return@withContext null
         try {
             SessionJson.sessionFromJson(Json.parseToJsonElement(text).jsonObject)
@@ -71,14 +71,14 @@ class SessionRepository(private val files: FileStore) {
         }
     }
 
-    suspend fun deleteSession(id: String): Unit = withContext(Dispatchers.IO) {
+    suspend fun deleteSession(id: String): Unit = withContext(IoDispatcher) {
         mutex.withLock {
             files.delete(fileName(id))
             writeIndexLocked(loadIndexLocked().filter { it.id != id })
         }
     }
 
-    suspend fun exportSessionJson(id: String): String? = withContext(Dispatchers.IO) {
+    suspend fun exportSessionJson(id: String): String? = withContext(IoDispatcher) {
         files.readText(fileName(id))
     }
 

@@ -241,7 +241,7 @@ All JSON is written and parsed with kotlinx.serialization's `JsonElement` API be
 **File storage via `FileStore`** (`context.filesDir/sessions/`) — large session recordings:
 - One JSON file per session (`session_{id}.json`) with full pressure trace
 - Index file (`sessions_index.json`) for fast listing without loading traces
-- Writes are atomic (temp file + rename); all I/O runs on Dispatchers.IO behind a
+- Writes are atomic (temp file + rename); all I/O runs on IoDispatcher (Dispatchers.IO per platform) behind a
   mutex; serialization lives in `SessionJson` (pure, covered by round-trip tests)
 - Auto-cleanup: keeps last 50 sessions, deletes oldest on save
 - Session types: `MinEqSession` (with peak markers), `ConstantEqSession` (with range/scoring data), `GameSession` (with score and pressure bounds), `MultiplayerGameSession` (per-player results)

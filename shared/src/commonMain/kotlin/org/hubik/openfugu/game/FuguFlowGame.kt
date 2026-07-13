@@ -1,5 +1,6 @@
 package org.hubik.openfugu.game
 
+import kotlin.random.Random
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -199,7 +200,7 @@ private fun buildRandomMix(targetDurationSec: Float = 45f): FlowPattern {
     kf.add(FlowKeyframe(1f, 0.05f))
     t = 1f
 
-    val rng = java.util.Random()
+    val rng = Random(nowMillis())
     var lastEndValue = 0.05f
 
     while (t < targetDurationSec) {

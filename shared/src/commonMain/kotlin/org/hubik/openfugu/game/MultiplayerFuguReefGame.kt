@@ -1,5 +1,6 @@
 package org.hubik.openfugu.game
 
+import kotlin.random.Random
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -96,7 +97,7 @@ fun MultiplayerFuguReefScreen(
             val rightEdge = updated.maxOfOrNull { it.x }
             val spawnThreshold = screenWidthDp + REEF_OBSTACLE_WIDTH_DP
             if (rightEdge == null || rightEdge < spawnThreshold) {
-                val gapCenter = 0.2f + Math.random().toFloat() * 0.6f
+                val gapCenter = 0.2f + Random.nextFloat() * 0.6f
                 val spawnX = if (updated.isEmpty()) {
                     screenWidthDp + REEF_FIRST_OBSTACLE_DP
                 } else {
