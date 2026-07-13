@@ -34,6 +34,20 @@ algorithmic core (detectors, exercises, game math, session serialization —
 they live in `shared/src/androidHostTest/`). Use `compileDebugKotlin`
 (fast) not `packageDebug`/`assembleDebug` (slow, may OOM).
 
+`compileDebugKotlin` validates commonMain only against Android, where JVM
+APIs (`java.*`, `Math.*`) are implicitly visible — they break Kotlin/Native
+in the iOS CI workflow instead. Before pushing commonMain changes, run the
+same pattern check CI runs:
+
+```bash
+grep -rnE '\bjava\.|\bMath\.|System\.currentTimeMillis|String\.format|Dispatchers\.IO|nativeCanvas' \
+  shared/src/commonMain --include='*.kt'
+```
+
+(Empty output = clean. `:shared:compileNativeMainKotlinMetadata` also
+catches these but false-positives on Kable's identifier-based `Peripheral()`,
+so it is not used as a gate.)
+
 ## Conventions
 
 ### Reuse before creating

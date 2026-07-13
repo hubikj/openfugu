@@ -5,10 +5,19 @@ name: iOS
 # on-device testing (see IDEAS.md — iOS milestones). Apple-target Kotlin
 # only compiles on macOS, so this workflow is also where iosMain compile
 # errors surface.
+# The macOS job takes ~15 minutes, so it only runs when something that can
+# affect the iOS build changes (shared module, iosApp shell, build config).
+# Pushes touching only app/ or docs skip it; workflow_dispatch forces a run.
 on:
   push:
     branches: [main, 'kmp-*']
-    paths-ignore: ['**.md']
+    paths:
+      - 'shared/**'
+      - 'iosApp/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/ios.yml'
   workflow_dispatch:
 
 jobs:
@@ -62,3 +71,5 @@ jobs:
         with:
           name: OpenFugu-unsigned-ipa
           path: iosApp/build/Build/Products/Release-iphoneos/OpenFugu-unsigned.ipa
+          # Sideload artifacts go stale fast; no need for the 90-day default.
+          retention-days: 14
