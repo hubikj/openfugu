@@ -289,7 +289,11 @@ private fun Modifier.borderExceptEnd(
         drawContent()
         val half = strokeWidth.toPx() / 2f
         val r = cornerRadius.toPx()
-        val gap = startEdgeGapHeight.toPx()
+        // Shrink the gap by one stroke width at each end: the attached
+        // handle's own top/bottom border lines sit half a stroke inside its
+        // bounds, so without this overlap a missing corner pixel shows at
+        // both points where the outlines meet.
+        val gap = (startEdgeGapHeight - strokeWidth * 2).toPx()
         val path = Path().apply {
             moveTo(size.width, half)
             lineTo(r + half, half)
