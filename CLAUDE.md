@@ -41,12 +41,13 @@ same pattern check CI runs:
 
 ```bash
 grep -rnE '\bjava\.|\bMath\.|System\.currentTimeMillis|String\.format|Dispatchers\.IO|nativeCanvas' \
-  shared/src/commonMain --include='*.kt'
+  shared/src/commonMain --include='*.kt' | grep -vE '^[^:]+:[0-9]+:\s*(//|\*)'
 ```
 
-(Empty output = clean. `:shared:compileNativeMainKotlinMetadata` also
-catches these but false-positives on Kable's identifier-based `Peripheral()`,
-so it is not used as a gate.)
+(Empty output = clean; the second grep drops comment lines that merely
+mention the APIs. `:shared:compileNativeMainKotlinMetadata` also catches
+these but false-positives on Kable's identifier-based `Peripheral()`, so it
+is not used as a gate.)
 
 ## Conventions
 

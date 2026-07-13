@@ -21,9 +21,14 @@ jobs:
       # the slow macOS job — catch the common slips here first.
       - name: Check commonMain for JVM-only APIs
         run: |
-          ! grep -rnE '\bjava\.|\bMath\.|System\.currentTimeMillis|String\.format|Dispatchers\.IO|nativeCanvas' \
+          hits=$(grep -rnE '\bjava\.|\bMath\.|System\.currentTimeMillis|String\.format|Dispatchers\.IO|nativeCanvas' \
             shared/src/commonMain --include='*.kt' \
-            || { echo '::error::JVM-only API in commonMain — see module rule in CLAUDE.md (use util/ helpers, kotlin.math, kotlin.random, IoDispatcher)'; exit 1; }
+            | grep -vE '^[^:]+:[0-9]+:\s*(//|\*)' || true)  # comments may mention the APIs
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo '::error::JVM-only API in commonMain — see module rule in CLAUDE.md (use util/ helpers, kotlin.math, kotlin.random, IoDispatcher)'
+            exit 1
+          fi
 
       - uses: actions/setup-java@v4
         with:
