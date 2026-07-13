@@ -302,7 +302,7 @@ Multiplayer games and the Live chart already use assigned device colors. Remaini
 
 ## In Progress: iOS Version (Kotlin Multiplatform)
 
-Decided 2026-07-07, work started 2026-07-12. There is real demand: several iPhone-owning friends want the app. **Status: M0–M2 done** (branch `kmp-m1`); M2's Kable path still needs verification against real eFugu hardware via the "Bluetooth engine" setting.
+Decided 2026-07-07, work started 2026-07-12. There is real demand: several iPhone-owning friends want the app. **Status: M0–M2 done and verified on real hardware (2026-07-13).**
 
 **Approach:**
 - One repo, migrated in place — **no fork**. Restructure into `shared/` (core logic, games, Compose Multiplatform UI) plus thin `app/` (Android) and `iosApp/` shells. Rename the repo (e.g. `openfugu`) when it happens; GitHub redirects old URLs.
@@ -319,7 +319,7 @@ Decided 2026-07-07, work started 2026-07-12. There is real demand: several iPhon
 **Milestones (estimated 2026-07-11, ~11,100 lines total at the time):**
 - **M0 — DONE (2026-07-12, merged to main).** JVM/Android-isms swapped (kotlinx.serialization with unchanged on-disk schema, kotlin.uuid, kotlinx-datetime, snackbar messages, Compose clipboard, AppLog facade, portable `fmt`/`nowMillis`), storage abstracted behind `KeyValueStore`/`FileStore`, MainActivity split into a ~120-line shell + EFuguApp/LiveTab/DevicesTab. Also new: settings screen (theme, simulated-devices gate, About).
 - **M1 — DONE (2026-07-12, branch `kmp-m1`).** `shared/` module (commonMain/androidMain, `com.android.kotlin.multiplatform.library` + Compose Multiplatform 1.9.3); games, exercises, detectors, sessions, chart, most screens moved; canvas text drawing rewritten on TextMeasurer (`ui/CanvasText.kt`) since `nativeCanvas` is Android-only; all 79 unit tests moved and green.
-- **M2 — IMPLEMENTED (2026-07-13, branch `kmp-m1`), needs real-device verification.** `KableDeviceConnection` + Kable scanning in commonMain (Kable 0.42.0 — newest Kotlin-2.2-compatible), switchable at runtime via the "Bluetooth engine" developer setting with the legacy `DeviceConnection` as default/fallback. Verify against the eFugu: connect, pressure stream, battery, device info, auth, unexpected-disconnect handling, multi-device.
+- **M2 — DONE (2026-07-13, verified on real eFugu hardware).** `KableDeviceConnection` + Kable scanning in commonMain (Kable 0.42.0 — newest Kotlin-2.2-compatible), switchable at runtime via the "Bluetooth engine" developer setting with the legacy `DeviceConnection` as default/fallback. On Android both engines key devices by MAC address, so saved devices/pairings are engine-independent (iOS will differ — see M4).
 - **M3 — NEXT: iOS shell boots.** Add Apple targets to `shared` (own branch; harmless to Android — Apple targets are skipped on non-macOS hosts), Xcode project, CI signing pipeline, platform actuals (storage, share sheet, keep-screen-on, logger), static theme (no dynamic color on iOS). Games playable on the iPhone via the simulated device before BLE works. Little code, much toolchain friction. Note: needs GitHub Actions macOS runners — free only once the repo is public (private repos burn paid minutes at 10×), one more reason to flip the repo public first.
 - **M4 — iOS BLE bring-up.** Kable's CoreBluetooth backend against a real eFugu: Info.plist permission strings, UUID identity, connection concurrency, `.fugu` import (UTType), portrait lock. Protocol already proven in M2; cost driver is CI build latency per iteration.
 - **M5 — TestFlight.** Paperwork.
