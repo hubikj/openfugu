@@ -1,0 +1,64 @@
+name: iOS
+
+# Builds the unsigned .ipa on every push to main and kmp-* branches.
+# Sideloadly/AltServer re-sign the artifact with a free Apple ID for
+# on-device testing (see IDEAS.md — iOS milestones). Apple-target Kotlin
+# only compiles on macOS, so this workflow is also where iosMain compile
+# errors surface.
+on:
+  push:
+    branches: [main, 'kmp-*']
+    paths-ignore: ['**.md']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # AGP configures the Android targets even when only iOS tasks run,
+      # and macOS runners no longer ship an Android SDK.
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-36.1 build-tools;36.1.0 platform-tools
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compile Kotlin for iOS
+        run: ./gradlew :shared:compileKotlinIosArm64
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+        working-directory: iosApp
+
+      - name: Build app (unsigned)
+        run: |
+          xcodebuild build \
+            -project iosApp/OpenFugu.xcodeproj \
+            -scheme OpenFugu \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath iosApp/build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package unsigned IPA
+        run: |
+          cd iosApp/build/Build/Products/Release-iphoneos
+          mkdir Payload
+          cp -R OpenFugu.app Payload/
+          zip -qry OpenFugu-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenFugu-unsigned-ipa
+          path: iosApp/build/Build/Products/Release-iphoneos/OpenFugu-unsigned.ipa
