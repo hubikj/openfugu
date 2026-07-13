@@ -9,25 +9,19 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.hubik.openfugu.ble.EFuguViewModel
 import org.hubik.openfugu.session.Session
-import org.hubik.openfugu.ui.MockDeviceOverlay
-import org.hubik.openfugu.ui.theme.OpenFuguTheme
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -42,7 +36,7 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         val allGranted = permissions.values.all { it }
         if (allGranted) {
-            efuguViewModel.startScan()
+            efuguViewModel.store.startScan()
         }
     }
 
@@ -52,46 +46,21 @@ class MainActivity : ComponentActivity() {
         importIntent = intent
         setContent {
             efuguViewModel = viewModel()
-            val appSettings by efuguViewModel.appSettings.collectAsState()
-            OpenFuguTheme(
-                darkTheme = when (appSettings.themeMode) {
-                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                    ThemeMode.LIGHT -> false
-                    ThemeMode.DARK -> true
-                }
-            ) {
-                val snackbarHostState = remember { SnackbarHostState() }
-                LaunchedEffect(Unit) {
-                    efuguViewModel.userMessages.collect { snackbarHostState.showSnackbar(it) }
-                }
-                // Resolve the Android intent to a plain suspend loader here so
-                // EFuguApp stays free of Intent/Uri types.
-                val importLoader: (suspend () -> Session?)? = remember(importIntent) {
-                    importIntent?.let(::sessionUriOf)?.let { uri ->
-                        suspend { efuguViewModel.importSession(uri) }
-                    }
-                }
-                Box {
-                    EFuguApp(
-                        viewModel = efuguViewModel,
-                        onRequestPermissionsAndScan = { requestPermissionsAndScan() },
-                        importSession = importLoader,
-                        onImportSessionHandled = { importIntent = null },
-                        onSaveLogs = ::saveLogsToFile
-                    )
-                    // Slider controls for simulated devices, drawn over every
-                    // screen (games included) while any mock is connected.
-                    MockDeviceOverlay(viewModel = efuguViewModel)
-                    // Messages float over every screen, games included — the
-                    // same reach the old toasts had.
-                    SnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .navigationBarsPadding()
-                    )
+            // Resolve the Android intent to a plain suspend loader here so
+            // the shared UI stays free of Intent/Uri types.
+            val importLoader: (suspend () -> Session?)? = remember(importIntent) {
+                importIntent?.let(::sessionUriOf)?.let { uri ->
+                    suspend { efuguViewModel.importSession(uri) }
                 }
             }
+            OpenFuguRoot(
+                store = efuguViewModel.store,
+                onRequestPermissionsAndScan = { requestPermissionsAndScan() },
+                importSession = importLoader,
+                onImportSessionHandled = { importIntent = null },
+                onSaveLogs = ::saveLogsToFile,
+                onShareSession = ::shareSessionFile
+            )
         }
     }
 
@@ -114,6 +83,32 @@ class MainActivity : ComponentActivity() {
         "Could not save logs"
     }
 
+    /** Write the session to a cache file and hand it to the system share sheet. */
+    private fun shareSessionFile(fileName: String, text: String) {
+        lifecycleScope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val dir = File(cacheDir, "shared_sessions")
+                    dir.mkdirs()
+                    // Old share copies accumulate otherwise; ones from previous
+                    // shares are no longer referenced by any in-flight intent
+                    // we control.
+                    dir.listFiles()?.forEach { it.delete() }
+                    File(dir, fileName).apply { writeText(text) }
+                }
+                val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", file)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/octet-stream"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(intent, "Share session"))
+            } catch (e: Exception) {
+                efuguViewModel.store.postUserMessage("Failed to share: ${e.message}")
+            }
+        }
+    }
+
     private fun requestPermissionsAndScan() {
         val permissions = listOf(
             Manifest.permission.BLUETOOTH_SCAN,
@@ -125,7 +120,7 @@ class MainActivity : ComponentActivity() {
         }
 
         if (notGranted.isEmpty()) {
-            efuguViewModel.startScan()
+            efuguViewModel.store.startScan()
         } else {
             permissionLauncher.launch(notGranted.toTypedArray())
         }

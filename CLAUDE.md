@@ -2,9 +2,9 @@
 
 ## Project
 
-OpenFugu is an open-source Android app for the eFugu freediving BLE pressure training device. Kotlin Multiplatform + Compose Multiplatform, targeting modern Android (API 35+); an iOS target is planned (IDEAS.md).
+OpenFugu is an open-source app for the eFugu freediving BLE pressure training device. Kotlin Multiplatform + Compose Multiplatform, targeting modern Android (API 35+) and iOS 16+ (iOS shell boots on simulated devices; real-device BLE is milestone M4 — IDEAS.md).
 
-**Module rule:** platform-neutral code lives in `shared/src/commonMain` (games, exercises, detectors, sessions, most screens); anything importing `android.*` or `EFuguViewModel` lives in `app` (Activity shell, EFuguApp routing, BLE layer, ViewModel-driven screens). Never import `android.*` (including `androidx.compose.ui.graphics.nativeCanvas`), `java.*`, `String.format`, or `System.currentTimeMillis()` in commonMain — use the `util/` helpers (`fmt`, `nowMillis`, `formatTimestamp`, `AppLog`) and `ui/CanvasText.kt` for canvas text.
+**Module rule:** platform-neutral code lives in `shared/src/commonMain` (`EFuguStore` state holder, `OpenFuguRoot`/`EFuguApp` routing, all screens, games, exercises, detectors, sessions); anything importing `android.*` lives in `app` (Activity shell, `EFuguViewModel` wrapper, legacy BLE engine); iOS platform code lives in `shared/src/iosMain` (entry point, storage/share/logger actuals — compiles only on macOS, so its errors surface in the iOS CI workflow; keep iosMain minimal). Never import `android.*` (including `androidx.compose.ui.graphics.nativeCanvas`), `java.*`, `String.format`, or `System.currentTimeMillis()` in commonMain — use the `util/` helpers (`fmt`, `nowMillis`, `formatTimestamp`, `AppLog`) and `ui/CanvasText.kt` for canvas text. Platform needs of common code go through interfaces (`storage/Stores.kt`, `ble/BlePlatform.kt`), `expect`/`actual`, or callbacks injected into `OpenFuguRoot`.
 
 ## Documentation
 
@@ -48,7 +48,7 @@ Before creating a new composable, color constant, or utility, check if a shared 
 Per-game tuning constants live once, public in the single-player file (`REEF_*`, `FEAST_*`, `CAVE_*`); multiplayer variants reuse them — never redefine a tuning constant in a second file.
 
 ### Pressure sources
-Screens, exercises, and games depend on `ble/PressureSource.kt` (the abstract source owning the shared ingestion pipeline) — never on a concrete connection class directly. Real devices connect through `DeviceConnection` (Android BluetoothGatt, default) or `KableDeviceConnection` (Kable, multiplatform), selected by the "Bluetooth engine" developer setting. Simulated devices (`MockDeviceConnection`, `MOCK-n` addresses) must keep working wherever a real device does. Call them "simulated devices" in user-facing text ("mock" is developer jargon).
+Screens, exercises, and games depend on `ble/PressureSource.kt` (the abstract source owning the shared ingestion pipeline) — never on a concrete connection class directly. Real devices connect through `DeviceConnection` (Android BluetoothGatt, Android default) or `KableDeviceConnection` (Kable, multiplatform, the only engine on iOS), selected by the "Bluetooth engine" developer setting where both exist (`BlePlatform.hasLegacyEngine`). Simulated devices (`MockDeviceConnection`, `MOCK-n` addresses) must keep working wherever a real device does. Call them "simulated devices" in user-facing text ("mock" is developer jargon).
 
 ### User-facing text
 Spell out words: "equalization" not "EQ", "minimum" not "min", "maximum" not "max". Abbreviations are fine in code identifiers. Use "target range" not "target band".

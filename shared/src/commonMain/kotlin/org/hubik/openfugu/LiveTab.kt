@@ -19,7 +19,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.DeviceConnectionState
-import org.hubik.openfugu.ble.EFuguViewModel
 import org.hubik.openfugu.ble.PressureReading
 import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.SavedDevice
@@ -33,7 +32,7 @@ import org.hubik.openfugu.util.formatHPa
 @Composable
 fun LiveTab(
     connections: Map<String, PressureSource>,
-    viewModel: EFuguViewModel,
+    store: EFuguStore,
     modifier: Modifier = Modifier
 ) {
     if (connections.isEmpty()) {
@@ -56,7 +55,7 @@ fun LiveTab(
         // Single device: full-screen layout
         SingleDevicePanel(
             connection = deviceList.first(),
-            viewModel = viewModel,
+            store = store,
             modifier = modifier
         )
     } else {
@@ -71,7 +70,7 @@ fun LiveTab(
             items(deviceList, key = { it.address }) { connection ->
                 CompactDevicePanel(
                     connection = connection,
-                    viewModel = viewModel
+                    store = store
                 )
             }
         }
@@ -82,7 +81,7 @@ fun LiveTab(
 @Composable
 fun SingleDevicePanel(
     connection: PressureSource,
-    viewModel: EFuguViewModel,
+    store: EFuguStore,
     modifier: Modifier = Modifier
 ) {
     val connectionState by connection.state.collectAsState()
@@ -93,10 +92,10 @@ fun SingleDevicePanel(
     val batteryLevel by connection.batteryLevel.collectAsState()
     val deviceInfo by connection.deviceInfo.collectAsState()
     val isCalibrated by connection.isCalibrated.collectAsState()
-    val savedDevices by viewModel.savedDevices.collectAsState()
+    val savedDevices by store.savedDevices.collectAsState()
     val currentSaved = savedDevices.find { it.address == connection.address } ?: connection.savedDevice
-    val allUserProfiles by viewModel.userProfiles.collectAsState()
-    val allPairings by viewModel.deviceUserPairings.collectAsState()
+    val allUserProfiles by store.userProfiles.collectAsState()
+    val allPairings by store.deviceUserPairings.collectAsState()
     val pairedUserId = allPairings.find { it.deviceAddress == connection.address }?.userId
 
     // Visible min/max from chart (updated when paused + scrolling/zooming)
@@ -118,12 +117,12 @@ fun SingleDevicePanel(
             userProfiles = allUserProfiles,
             pairedUserId = pairedUserId,
             isConnecting = connectionState is DeviceConnectionState.Connecting,
-            onDisconnect = { viewModel.disconnectDevice(connection.address) },
-            onNicknameSet = { viewModel.setNickname(connection.address, it) },
-            onColorSet = { viewModel.setColor(connection.address, it) },
+            onDisconnect = { store.disconnectDevice(connection.address) },
+            onNicknameSet = { store.setNickname(connection.address, it) },
+            onColorSet = { store.setColor(connection.address, it) },
             onPairUser = { userId ->
-                if (userId != null) viewModel.pairDeviceToUser(connection.address, userId)
-                else viewModel.unpairDevice(connection.address)
+                if (userId != null) store.pairDeviceToUser(connection.address, userId)
+                else store.unpairDevice(connection.address)
             }
         )
 
@@ -146,7 +145,7 @@ fun SingleDevicePanel(
                 chartMin = displayMin,
                 chartMax = displayMax,
                 isCalibrated = isCalibrated,
-                onRecalibrate = { viewModel.resetCalibration(connection.address) }
+                onRecalibrate = { store.resetCalibration(connection.address) }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -189,7 +188,7 @@ fun SingleDevicePanel(
 @Composable
 fun CompactDevicePanel(
     connection: PressureSource,
-    viewModel: EFuguViewModel
+    store: EFuguStore
 ) {
     val connectionState by connection.state.collectAsState()
     val latestPressure by connection.latestPressure.collectAsState()
@@ -198,10 +197,10 @@ fun CompactDevicePanel(
     val chartMax by connection.chartMax.collectAsState()
     val batteryLevel by connection.batteryLevel.collectAsState()
     val isCalibrated by connection.isCalibrated.collectAsState()
-    val savedDevices by viewModel.savedDevices.collectAsState()
+    val savedDevices by store.savedDevices.collectAsState()
     val currentSaved = savedDevices.find { it.address == connection.address } ?: connection.savedDevice
-    val allUserProfiles by viewModel.userProfiles.collectAsState()
-    val allPairings by viewModel.deviceUserPairings.collectAsState()
+    val allUserProfiles by store.userProfiles.collectAsState()
+    val allPairings by store.deviceUserPairings.collectAsState()
     val pairedUserId = allPairings.find { it.deviceAddress == connection.address }?.userId
     val pairedUser = allUserProfiles.find { it.id == pairedUserId }
     var showEditDialog by remember { mutableStateOf(false) }
@@ -253,7 +252,7 @@ fun CompactDevicePanel(
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 OutlinedButton(
-                    onClick = { viewModel.disconnectDevice(connection.address) },
+                    onClick = { store.disconnectDevice(connection.address) },
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     modifier = Modifier.height(28.dp)
                 ) {
@@ -325,10 +324,10 @@ fun CompactDevicePanel(
             currentPairedUserId = pairedUserId,
             onDismiss = { showEditDialog = false },
             onConfirm = { nickname, color, userId ->
-                viewModel.setNickname(connection.address, nickname)
-                viewModel.setColor(connection.address, color)
-                if (userId != null) viewModel.pairDeviceToUser(connection.address, userId)
-                else viewModel.unpairDevice(connection.address)
+                store.setNickname(connection.address, nickname)
+                store.setColor(connection.address, color)
+                if (userId != null) store.pairDeviceToUser(connection.address, userId)
+                else store.unpairDevice(connection.address)
                 showEditDialog = false
             }
         )

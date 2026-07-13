@@ -1,6 +1,5 @@
 package org.hubik.openfugu.session
 
-import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,20 +12,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.hubik.openfugu.ChartLine
 import org.hubik.openfugu.PressureChart
-import org.hubik.openfugu.ble.EFuguViewModel
+import org.hubik.openfugu.EFuguStore
 import org.hubik.openfugu.ui.AppColors
-import org.hubik.openfugu.ui.HpaValueRow
 import org.hubik.openfugu.ui.StatRow
-import java.io.File
 import org.hubik.openfugu.util.FileStampFormat
 import org.hubik.openfugu.util.LongDateTimeFormat
 import org.hubik.openfugu.util.fmt
@@ -35,19 +28,19 @@ import org.hubik.openfugu.util.formatTimestamp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionViewerScreen(
-    viewModel: EFuguViewModel,
+    store: EFuguStore,
     sessionId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onShare: (fileName: String, text: String) -> Unit
 ) {
     // Session files can be multi-MB (20 Hz traces) — load off the main thread
     // and show a spinner instead of freezing composition.
     var loading by remember(sessionId) { mutableStateOf(true) }
     var loadedSession by remember(sessionId) { mutableStateOf<Session?>(null) }
     LaunchedEffect(sessionId) {
-        loadedSession = viewModel.loadSession(sessionId)
+        loadedSession = store.loadSession(sessionId)
         loading = false
     }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
@@ -74,7 +67,14 @@ fun SessionViewerScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        scope.launch { shareSession(context, viewModel, sessionId, session) }
+                        scope.launch {
+                            val json = store.exportSessionJson(sessionId)
+                            if (json == null) {
+                                store.postUserMessage("Session file not found")
+                            } else {
+                                onShare(shareFileName(session), json)
+                            }
+                        }
                     }) {
                         Icon(Icons.Filled.Share, contentDescription = "Share")
                     }
@@ -211,7 +211,7 @@ fun SessionViewerScreen(
             text = { Text("Delete this session recording? This cannot be undone.") },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.deleteSession(sessionId)
+                    store.deleteSession(sessionId)
                     showDeleteDialog = false
                     onBack()
                 }) {
@@ -246,37 +246,16 @@ private fun formatDuration(ms: Long): String {
     return if (minutes > 0) "${minutes}m ${seconds}s" else "${seconds}s"
 }
 
-private suspend fun shareSession(context: android.content.Context, viewModel: EFuguViewModel, sessionId: String, session: Session) {
-    val json = viewModel.exportSessionJson(sessionId)
-    if (json == null) {
-        viewModel.postUserMessage("Session file not found")
-        return
-    }
-    try {
-        val file = withContext(Dispatchers.IO) {
-            val dir = File(context.cacheDir, "shared_sessions")
-            dir.mkdirs()
-            // Old share copies accumulate otherwise; ones from previous shares
-            // are no longer referenced by any in-flight intent we control.
-            dir.listFiles()?.forEach { it.delete() }
-            val userStr = session.userName?.replace(" ", "_") ?: "unknown"
-            val dateStr = formatTimestamp(session.timestamp, FileStampFormat)
-            val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")
-            // .fugu extension (JSON inside): receiving apps resolve it to
-            // application/octet-stream, which is what our import intent filter
-            // matches — a plain .json file would offer OpenFugu for every JSON.
-            val fileName = "OpenFugu_${userStr}_${dateStr}_${typeStr}.fugu"
-            File(dir, fileName).apply { writeText(json) }
-        }
-
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/octet-stream"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(intent, "Share session"))
-    } catch (e: Exception) {
-        viewModel.postUserMessage("Failed to share: ${e.message}")
-    }
+/**
+ * File name for a shared session. The .fugu extension (JSON inside) keeps
+ * receivers resolving it to application/octet-stream, which is what the
+ * import filters match — a plain .json file would offer OpenFugu for every
+ * JSON. The platform shell decides how the file leaves the device (Android
+ * share intent, iOS share sheet).
+ */
+private fun shareFileName(session: Session): String {
+    val userStr = session.userName?.replace(" ", "_") ?: "unknown"
+    val dateStr = formatTimestamp(session.timestamp, FileStampFormat)
+    val typeStr = sessionTypeDisplayName(session.type).replace(" ", "_")
+    return "OpenFugu_${userStr}_${dateStr}_${typeStr}.fugu"
 }

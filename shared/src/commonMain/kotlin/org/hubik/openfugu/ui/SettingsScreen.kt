@@ -39,6 +39,7 @@ import org.hubik.openfugu.ThemeMode
 fun SettingsScreen(
     settings: AppSettings,
     appVersion: String,
+    showBleEngine: Boolean,
     onThemeModeChange: (ThemeMode) -> Unit,
     onShowSimulatedDevicesChange: (Boolean) -> Unit,
     onBleBackendChange: (BleBackend) -> Unit,
@@ -91,26 +92,30 @@ fun SettingsScreen(
                 onCheckedChange = onShowSimulatedDevicesChange
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Bluetooth engine", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "Kable is the experimental cross-platform engine; Android is the " +
-                    "proven one. Applies to devices connected from now on.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                BleBackend.entries.forEachIndexed { index, backend ->
-                    SegmentedButton(
-                        selected = settings.bleBackend == backend,
-                        onClick = { onBleBackendChange(backend) },
-                        shape = SegmentedButtonDefaults.itemShape(
-                            index = index,
-                            count = BleBackend.entries.size
-                        )
-                    ) {
-                        Text(backend.label)
+            // Platforms without the legacy engine (iOS) always use Kable —
+            // nothing to switch, so the setting is hidden there.
+            if (showBleEngine) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Bluetooth engine", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "Kable is the experimental cross-platform engine; Android is the " +
+                        "proven one. Applies to devices connected from now on.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    BleBackend.entries.forEachIndexed { index, backend ->
+                        SegmentedButton(
+                            selected = settings.bleBackend == backend,
+                            onClick = { onBleBackendChange(backend) },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = index,
+                                count = BleBackend.entries.size
+                            )
+                        ) {
+                            Text(backend.label)
+                        }
                     }
                 }
             }

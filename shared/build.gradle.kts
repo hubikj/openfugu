@@ -20,6 +20,16 @@ kotlin {
         withHostTestBuilder {}
     }
 
+    // Apple targets compile only on macOS hosts; on Linux they are skipped
+    // with a warning, so Android work is unaffected. iOS compile errors
+    // surface in the iOS CI workflow, not locally.
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { target ->
+        target.binaries.framework {
+            baseName = "OpenFuguShared"
+            isStatic = true
+        }
+    }
+
     sourceSets {
         commonMain.dependencies {
             // api: the app module builds its screens on these
@@ -28,6 +38,7 @@ kotlin {
             api(compose.material3)
             api(compose.materialIconsExtended)
             api(compose.ui)
+            api(libs.compose.ui.backhandler)
             api(libs.kotlinx.coroutines.core)
             api(libs.kable.core)
             implementation(libs.kotlinx.serialization.json)

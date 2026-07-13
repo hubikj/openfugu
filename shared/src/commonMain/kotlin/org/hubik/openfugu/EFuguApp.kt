@@ -1,6 +1,5 @@
 package org.hubik.openfugu
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,13 +16,14 @@ import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.backhandler.BackHandler
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ble.DeviceColors
 import org.hubik.openfugu.ble.DeviceConnectionState
-import org.hubik.openfugu.ble.EFuguViewModel
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.exercise.ConstantEqScreen
 import org.hubik.openfugu.exercise.MinEqExerciseScreen
@@ -45,21 +45,22 @@ import org.hubik.openfugu.ui.UserDetailScreen
 // App root — always shows bottom navigation
 // =============================================================================
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun EFuguApp(
-    viewModel: EFuguViewModel,
+    store: EFuguStore,
     onRequestPermissionsAndScan: () -> Unit,
     importSession: (suspend () -> Session?)? = null,
     onImportSessionHandled: () -> Unit = {},
-    onSaveLogs: (List<String>) -> String = { "" }
+    onSaveLogs: (List<String>) -> String = { "" },
+    onShareSession: (fileName: String, text: String) -> Unit = { _, _ -> }
 ) {
     // First run (no saved devices yet): start on the Devices tab — the user
     // must connect a device first, everything else flows from device-user
     // pairing. Derived from state, not a stored flag, so it also recovers
     // sensibly after a data clear.
     var selectedTab by remember {
-        mutableIntStateOf(if (viewModel.savedDevices.value.isEmpty()) 2 else 0)
+        mutableIntStateOf(if (store.savedDevices.value.isEmpty()) 2 else 0)
     }
     var activeGame by remember { mutableStateOf<String?>(null) }
     // One address runs the single-player version, two or more the multiplayer one
@@ -73,16 +74,16 @@ fun EFuguApp(
     var calibratingUserId by remember { mutableStateOf<String?>(null) }
     var viewingSessionId by remember { mutableStateOf<String?>(null) }
 
-    val connections by viewModel.connections.collectAsState()
-    val scanState by viewModel.scanState.collectAsState()
-    val savedDevices by viewModel.savedDevices.collectAsState()
-    val scannedDevices by viewModel.scannedDevices.collectAsState()
-    val logMessages by viewModel.logMessages.collectAsState()
-    val userProfiles by viewModel.userProfiles.collectAsState()
-    val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
-    val recentSessions by viewModel.recentSessions.collectAsState()
-    val appSettings by viewModel.appSettings.collectAsState()
-    val appVersion = "${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})"
+    val connections by store.connections.collectAsState()
+    val scanState by store.scanState.collectAsState()
+    val savedDevices by store.savedDevices.collectAsState()
+    val scannedDevices by store.scannedDevices.collectAsState()
+    val logMessages by store.logMessages.collectAsState()
+    val userProfiles by store.userProfiles.collectAsState()
+    val deviceUserPairings by store.deviceUserPairings.collectAsState()
+    val recentSessions by store.recentSessions.collectAsState()
+    val appSettings by store.appSettings.collectAsState()
+    val appVersion = store.appVersion
 
     // Auto-start scan on first composition
     LaunchedEffect(Unit) {
@@ -99,7 +100,7 @@ fun EFuguApp(
         if (session != null) {
             viewingSessionId = session.id
         } else {
-            viewModel.postUserMessage("This file is not an OpenFugu session")
+            store.postUserMessage("This file is not an OpenFugu session")
         }
         onImportSessionHandled()
     }
@@ -141,7 +142,7 @@ fun EFuguApp(
             LogsTab(
                 logMessages = logMessages,
                 appVersion = appVersion,
-                onShowMessage = { viewModel.postUserMessage(it) },
+                onShowMessage = { store.postUserMessage(it) },
                 onSaveLogs = { onSaveLogs(logMessages) },
                 modifier = Modifier.padding(padding)
             )
@@ -155,9 +156,10 @@ fun EFuguApp(
         SettingsScreen(
             settings = appSettings,
             appVersion = appVersion,
-            onThemeModeChange = { viewModel.updateAppSettings(appSettings.copy(themeMode = it)) },
-            onShowSimulatedDevicesChange = { viewModel.updateAppSettings(appSettings.copy(showSimulatedDevices = it)) },
-            onBleBackendChange = { viewModel.updateAppSettings(appSettings.copy(bleBackend = it)) },
+            showBleEngine = store.hasLegacyBleEngine,
+            onThemeModeChange = { store.updateAppSettings(appSettings.copy(themeMode = it)) },
+            onShowSimulatedDevicesChange = { store.updateAppSettings(appSettings.copy(showSimulatedDevices = it)) },
+            onBleBackendChange = { store.updateAppSettings(appSettings.copy(bleBackend = it)) },
             onBack = { showSettings = false }
         )
         return
@@ -167,7 +169,7 @@ fun EFuguApp(
     if (showUserDetail != null) {
         BackHandler { showUserDetail = null }
         UserDetailScreen(
-            viewModel = viewModel,
+            store = store,
             userId = showUserDetail!!,
             onBack = { showUserDetail = null },
             onStartCalibration = { userId ->
@@ -183,9 +185,10 @@ fun EFuguApp(
     if (viewingSessionId != null) {
         BackHandler { viewingSessionId = null }
         SessionViewerScreen(
-            viewModel = viewModel,
+            store = store,
             sessionId = viewingSessionId!!,
-            onBack = { viewingSessionId = null }
+            onBack = { viewingSessionId = null },
+            onShare = onShareSession
         )
         return
     }
@@ -198,7 +201,7 @@ fun EFuguApp(
             showUserDetail = returnToUser
         }
         CalibrationWizard(
-            viewModel = viewModel,
+            store = store,
             userId = calibratingUserId!!,
             connections = connections,
             onBack = {
@@ -216,7 +219,7 @@ fun EFuguApp(
     // Multiplayer game routing (two or more devices selected at launch)
     if (activeGame != null && activeGameDeviceAddresses.size >= 2 && selectedTab == 1) {
         val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
-        val onSaveSession = { session: org.hubik.openfugu.session.Session -> viewModel.saveSession(session) }
+        val onSaveSession = { session: org.hubik.openfugu.session.Session -> store.saveSession(session) }
         BackHandler { onGameBack() }
         // Every player gets a distinct color: the first device with a given
         // saved color keeps it; later duplicates and colorless devices get a
@@ -228,7 +231,7 @@ fun EFuguApp(
         val playerInfos = activeGameDeviceAddresses.mapNotNull { addr ->
             val conn = connections[addr] ?: return@mapNotNull null
             val saved = savedDevices.find { it.address == addr } ?: return@mapNotNull null
-            val profile = viewModel.userForDevice(addr)
+            val profile = store.userForDevice(addr)
             val colorArgb = honoredColor[addr] ?: run {
                 val free = DeviceColors.presets.firstOrNull { it !in takenColors }
                     ?: DeviceColors.presets[activeGameDeviceAddresses.indexOf(addr) % DeviceColors.presets.size]
@@ -266,7 +269,7 @@ fun EFuguApp(
             // Too few players left. Reset in an effect (never as a side effect
             // of composition) and tell the players what happened.
             LaunchedEffect(Unit) {
-                viewModel.postUserMessage("Player disconnected — multiplayer game ended")
+                store.postUserMessage("Player disconnected — multiplayer game ended")
                 activeGame = null
                 activeGameDeviceAddresses = emptyList()
             }
@@ -280,7 +283,7 @@ fun EFuguApp(
         val connection = connections[activeGameDeviceAddresses.first()]
         if (connection != null) {
             BackHandler { activeGame = null; activeGameDeviceAddresses = emptyList() }
-            val userProfile = viewModel.userForDevice(connection.address)
+            val userProfile = store.userForDevice(connection.address)
             val range = userProfile?.gamePressureRange ?: 40.0
             val negRange = userProfile?.gameNegativeRange ?: 0.0
             val expert = userProfile?.expertMode ?: false
@@ -289,7 +292,7 @@ fun EFuguApp(
             val devName = savedDevice?.displayName ?: connection.displayName
             val usrName = userProfile?.name
             val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
-            val onSaveSession = { session: org.hubik.openfugu.session.Session -> viewModel.saveSession(session) }
+            val onSaveSession = { session: org.hubik.openfugu.session.Session -> store.saveSession(session) }
             when (activeGame) {
                 "reef" -> FuguReefScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
                 "feast" -> FuguFeastScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
@@ -305,7 +308,7 @@ fun EFuguApp(
                     onSave = { profileId, minEqHPa ->
                         val profile = userProfiles.find { it.id == profileId }
                         if (profile != null) {
-                            viewModel.updateUser(profile.copy(minEqPressureHPa = minEqHPa))
+                            store.updateUser(profile.copy(minEqPressureHPa = minEqHPa))
                         }
                     },
                     onSessionSave = onSaveSession,
@@ -326,7 +329,7 @@ fun EFuguApp(
             // The game's device disconnected. Reset in an effect (never as a
             // side effect of composition) and tell the user.
             LaunchedEffect(Unit) {
-                viewModel.postUserMessage("Device disconnected — game ended")
+                store.postUserMessage("Device disconnected — game ended")
                 activeGame = null
                 activeGameDeviceAddresses = emptyList()
             }
@@ -393,13 +396,13 @@ fun EFuguApp(
             val isDevicesTab = selectedTab == 2
             if (isDevicesTab) onRequestPermissionsAndScan()
             onDispose {
-                if (isDevicesTab) viewModel.stopScan()
+                if (isDevicesTab) store.stopScan()
             }
         }
         when (selectedTab) {
             0 -> LiveTab(
                 connections = connections,
-                viewModel = viewModel,
+                store = store,
                 modifier = Modifier.padding(padding)
             )
             1 -> ExercisesTab(
@@ -415,10 +418,10 @@ fun EFuguApp(
                     lastExerciseDeviceAddresses = conns.map { it.address }
                 },
                 onSessionClick = { sessionId -> viewingSessionId = sessionId },
-                onDeleteSession = { sessionId -> viewModel.deleteSession(sessionId) },
+                onDeleteSession = { sessionId -> store.deleteSession(sessionId) },
                 onPairUser = { addr, userId ->
-                    if (userId != null) viewModel.pairDeviceToUser(addr, userId)
-                    else viewModel.unpairDevice(addr)
+                    if (userId != null) store.pairDeviceToUser(addr, userId)
+                    else store.unpairDevice(addr)
                 },
                 modifier = Modifier.padding(padding)
             )
@@ -430,17 +433,17 @@ fun EFuguApp(
                 userProfiles = userProfiles,
                 deviceUserPairings = deviceUserPairings,
                 onScan = onRequestPermissionsAndScan,
-                onStopScan = { viewModel.stopScan() },
-                onConnect = { viewModel.connectToDevice(it) },
-                onDisconnect = { viewModel.disconnectDevice(it) },
-                onForget = { viewModel.forgetDevice(it) },
-                onNicknameSet = { addr, name -> viewModel.setNickname(addr, name) },
-                onColorSet = { addr, color -> viewModel.setColor(addr, color) },
+                onStopScan = { store.stopScan() },
+                onConnect = { store.connectToDevice(it) },
+                onDisconnect = { store.disconnectDevice(it) },
+                onForget = { store.forgetDevice(it) },
+                onNicknameSet = { addr, name -> store.setNickname(addr, name) },
+                onColorSet = { addr, color -> store.setColor(addr, color) },
                 onPairUser = { addr, userId ->
-                    if (userId != null) viewModel.pairDeviceToUser(addr, userId)
-                    else viewModel.unpairDevice(addr)
+                    if (userId != null) store.pairDeviceToUser(addr, userId)
+                    else store.unpairDevice(addr)
                 },
-                onAddMockDevice = { viewModel.addMockDevice() },
+                onAddMockDevice = { store.addMockDevice() },
                 showSimulatedDevices = appSettings.showSimulatedDevices,
                 modifier = Modifier.padding(padding)
             )
@@ -448,7 +451,7 @@ fun EFuguApp(
                 userProfiles = userProfiles,
                 savedDevices = savedDevices,
                 deviceUserPairings = deviceUserPairings,
-                onAddUser = { name -> calibrateOfferUser = viewModel.addUser(name) },
+                onAddUser = { name -> calibrateOfferUser = store.addUser(name) },
                 onSelectUser = { userId -> showUserDetail = userId },
                 modifier = Modifier.padding(padding)
             )
@@ -466,8 +469,8 @@ fun EFuguApp(
                 firstUserPromptDismissed = true
             },
             onCreate = { name ->
-                val profile = viewModel.addUser(name)
-                firstConnectedAddress?.let { viewModel.pairDeviceToUser(it, profile.id) }
+                val profile = store.addUser(name)
+                firstConnectedAddress?.let { store.pairDeviceToUser(it, profile.id) }
                 showFirstUserDialog = false
                 calibrateOfferUser = profile
             }

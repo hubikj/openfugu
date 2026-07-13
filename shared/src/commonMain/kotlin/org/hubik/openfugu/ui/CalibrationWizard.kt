@@ -20,7 +20,7 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.DeviceConnectionState
-import org.hubik.openfugu.ble.EFuguViewModel
+import org.hubik.openfugu.EFuguStore
 import org.hubik.openfugu.ble.PeakDetector
 import org.hubik.openfugu.ble.SavedDevice
 import org.hubik.openfugu.ble.SustainedPressureDetector
@@ -52,7 +52,7 @@ private class HoldStepResults {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalibrationWizard(
-    viewModel: EFuguViewModel,
+    store: EFuguStore,
     userId: String,
     connections: Map<String, PressureSource>,
     onBack: () -> Unit,
@@ -69,9 +69,9 @@ fun CalibrationWizard(
     val maxNegativeProgress = remember { HoldStepResults() }
 
     // Device selection
-    val savedDevices by viewModel.savedDevices.collectAsState()
-    val userProfiles by viewModel.userProfiles.collectAsState()
-    val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
+    val savedDevices by store.savedDevices.collectAsState()
+    val userProfiles by store.userProfiles.collectAsState()
+    val deviceUserPairings by store.deviceUserPairings.collectAsState()
     val calibratingProfile = userProfiles.find { it.id == userId }
 
     // Collect each connection's state so Compose observes Connecting→Connected
@@ -130,14 +130,14 @@ fun CalibrationWizard(
                     val allSkipped = minEqResult == null && maxPositiveResult == null && maxNegativeResult == null
                     if (allSkipped) {
                         // All steps skipped — clear calibration data
-                        viewModel.updateUser(profile.copy(
+                        store.updateUser(profile.copy(
                             minEqPressureHPa = null,
                             maxPositiveHPa = null,
                             maxNegativeHPa = null,
                             lastCalibratedAt = null
                         ))
                     } else {
-                        viewModel.updateUser(profile.copy(
+                        store.updateUser(profile.copy(
                             minEqPressureHPa = minEqResult ?: profile.minEqPressureHPa,
                             maxPositiveHPa = maxPositiveResult ?: profile.maxPositiveHPa,
                             maxNegativeHPa = maxNegativeResult ?: profile.maxNegativeHPa,
@@ -179,8 +179,8 @@ fun CalibrationWizard(
                     selectedAddress = effectiveAddress,
                     onDeviceSelected = { selectedAddress = it },
                     onPairUser = { addr, userId ->
-                        if (userId != null) viewModel.pairDeviceToUser(addr, userId)
-                        else viewModel.unpairDevice(addr)
+                        if (userId != null) store.pairDeviceToUser(addr, userId)
+                        else store.unpairDevice(addr)
                     },
                     modifier = Modifier.padding(padding),
                     onNext = {

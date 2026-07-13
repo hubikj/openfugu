@@ -1,0 +1,50 @@
+# XcodeGen spec — the .xcodeproj is generated, not committed.
+# Locally: `brew install xcodegen && cd iosApp && xcodegen generate`.
+# CI (.github/workflows/ios.yml) does the same before building.
+name: OpenFugu
+options:
+  bundleIdPrefix: org.hubik
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    # Xcode 15+ sandboxes script phases by default, which would block the
+    # Gradle phase below from writing the framework into the build dir.
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+targets:
+  OpenFugu:
+    type: application
+    platform: iOS
+    sources:
+      - path: OpenFugu
+    info:
+      path: OpenFugu/Info.plist
+      properties:
+        CFBundleDisplayName: OpenFugu
+        CFBundleShortVersionString: "1.3.0"
+        CFBundleVersion: "5"
+        UILaunchScreen: {}
+        # Portrait only, like Android, until landscape layouts exist.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSBluetoothAlwaysUsageDescription: >-
+          OpenFugu connects to your eFugu pressure training device over
+          Bluetooth.
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.hubik.openfugu
+        TARGETED_DEVICE_FAMILY: "1"
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS: "$(inherited) -framework OpenFuguShared"
+    preBuildScripts:
+      - name: Build Kotlin Framework
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+        basedOnDependencyAnalysis: false
+schemes:
+  OpenFugu:
+    build:
+      targets:
+        OpenFugu: all

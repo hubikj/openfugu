@@ -49,7 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.hubik.openfugu.ble.EFuguViewModel
+import org.hubik.openfugu.EFuguStore
 import org.hubik.openfugu.ble.MockDeviceConnection
 import org.hubik.openfugu.util.formatHPa
 
@@ -69,9 +69,9 @@ private val HandleHeight = HandleIconSize + HandleVerticalPadding * 2
  * it never has to block a game.
  */
 @Composable
-fun MockDeviceOverlay(viewModel: EFuguViewModel) {
-    val connections by viewModel.connections.collectAsState()
-    val savedDevices by viewModel.savedDevices.collectAsState()
+fun MockDeviceOverlay(store: EFuguStore) {
+    val connections by store.connections.collectAsState()
+    val savedDevices by store.savedDevices.collectAsState()
     val mocks = connections.values.filterIsInstance<MockDeviceConnection>()
         .sortedBy { it.address }
     if (mocks.isEmpty()) return

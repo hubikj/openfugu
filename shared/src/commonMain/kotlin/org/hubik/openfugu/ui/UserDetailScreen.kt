@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import org.hubik.openfugu.ble.EFuguViewModel
+import org.hubik.openfugu.EFuguStore
 import org.hubik.openfugu.ble.MockDeviceConnection
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.util.fmt
@@ -25,16 +25,16 @@ import org.hubik.openfugu.util.fmt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserDetailScreen(
-    viewModel: EFuguViewModel,
+    store: EFuguStore,
     userId: String,
     onBack: () -> Unit,
     onStartCalibration: (userId: String) -> Unit,
     onDeleted: () -> Unit
 ) {
-    val userProfiles by viewModel.userProfiles.collectAsState()
-    val savedDevices by viewModel.savedDevices.collectAsState()
-    val deviceUserPairings by viewModel.deviceUserPairings.collectAsState()
-    val appSettings by viewModel.appSettings.collectAsState()
+    val userProfiles by store.userProfiles.collectAsState()
+    val savedDevices by store.savedDevices.collectAsState()
+    val deviceUserPairings by store.deviceUserPairings.collectAsState()
+    val appSettings by store.appSettings.collectAsState()
     val profile = userProfiles.find { it.id == userId }
 
     if (profile == null) {
@@ -131,7 +131,7 @@ fun UserDetailScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                                TextButton(onClick = { viewModel.unpairDevice(device.address) }) {
+                                TextButton(onClick = { store.unpairDevice(device.address) }) {
                                     Text("Remove")
                                 }
                             }
@@ -177,7 +177,7 @@ fun UserDetailScreen(
                                             )
                                         },
                                         onClick = {
-                                            viewModel.pairDeviceToUser(device.address, profile.id)
+                                            store.pairDeviceToUser(device.address, profile.id)
                                             expanded = false
                                         }
                                     )
@@ -219,7 +219,7 @@ fun UserDetailScreen(
 
             PressureRangeCard(
                 profile = profile,
-                onUpdate = { viewModel.updateUser(it) }
+                onUpdate = { store.updateUser(it) }
             )
 
             // Expert Mode
@@ -227,7 +227,7 @@ fun UserDetailScreen(
 
             ExpertModeCard(
                 profile = profile,
-                onUpdate = { viewModel.updateUser(it) }
+                onUpdate = { store.updateUser(it) }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -240,7 +240,7 @@ fun UserDetailScreen(
             currentName = profile.name,
             onDismiss = { showEditNameDialog = false },
             onConfirm = { newName ->
-                viewModel.updateUser(profile.copy(name = newName))
+                store.updateUser(profile.copy(name = newName))
                 showEditNameDialog = false
             }
         )
@@ -254,7 +254,7 @@ fun UserDetailScreen(
             text = { Text("Delete \"${profile.name}\" and all their calibration data?") },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.deleteUser(profile.id)
+                    store.deleteUser(profile.id)
                     showDeleteDialog = false
                     onDeleted()
                 }) {

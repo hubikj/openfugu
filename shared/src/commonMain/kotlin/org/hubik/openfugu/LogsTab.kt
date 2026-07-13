@@ -63,7 +63,9 @@ fun LogHeader(
             }) {
                 Text("Copy", fontSize = 12.sp)
             }
-            TextButton(onClick = { onShowMessage(onSaveLogs()) }) {
+            // An empty result means the platform gave its own feedback
+            // (e.g. the iOS share sheet) — nothing further to show.
+            TextButton(onClick = { onSaveLogs().takeIf { it.isNotEmpty() }?.let(onShowMessage) }) {
                 Text("Save", fontSize = 12.sp)
             }
         }
