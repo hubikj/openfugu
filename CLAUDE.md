@@ -34,6 +34,11 @@ algorithmic core (detectors, exercises, game math, session serialization —
 they live in `shared/src/androidHostTest/`). Use `compileDebugKotlin`
 (fast) not `packageDebug`/`assembleDebug` (slow, may OOM).
 
+When changing dependency versions, also run `:app:checkDebugAarMetadata`
+(fast) — androidx AARs declare a minimum compileSdk that only packaging
+tasks validate, so `compileDebugKotlin` alone lets an incompatible bump
+through.
+
 `compileDebugKotlin` validates commonMain only against Android, where JVM
 APIs (`java.*`, `Math.*`) are implicitly visible — they break Kotlin/Native
 in the iOS CI workflow instead. Before pushing commonMain changes, run the
