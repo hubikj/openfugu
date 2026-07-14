@@ -52,7 +52,7 @@ fun EFuguApp(
     onRequestPermissionsAndScan: () -> Unit,
     importSession: (suspend () -> Session?)? = null,
     onImportSessionHandled: () -> Unit = {},
-    onSaveLogs: (List<String>) -> String = { "" },
+    onShareLogs: (List<String>) -> Unit = {},
     onShareSession: (fileName: String, text: String) -> Unit = { _, _ -> }
 ) {
     // First run (no saved devices yet): start on the Devices tab — the user
@@ -143,7 +143,7 @@ fun EFuguApp(
                 logMessages = logMessages,
                 appVersion = appVersion,
                 onShowMessage = { store.postUserMessage(it) },
-                onSaveLogs = { onSaveLogs(logMessages) },
+                onShareLogs = { onShareLogs(logMessages) },
                 modifier = Modifier.padding(padding)
             )
         }

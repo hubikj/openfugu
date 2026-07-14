@@ -29,7 +29,7 @@ fun OpenFuguRoot(
     onRequestPermissionsAndScan: () -> Unit,
     importSession: (suspend () -> Session?)? = null,
     onImportSessionHandled: () -> Unit = {},
-    onSaveLogs: (List<String>) -> String = { "" },
+    onShareLogs: (List<String>) -> Unit = {},
     onShareSession: (fileName: String, text: String) -> Unit = { _, _ -> },
 ) {
     val appSettings by store.appSettings.collectAsState()
@@ -50,7 +50,7 @@ fun OpenFuguRoot(
                 onRequestPermissionsAndScan = onRequestPermissionsAndScan,
                 importSession = importSession,
                 onImportSessionHandled = onImportSessionHandled,
-                onSaveLogs = onSaveLogs,
+                onShareLogs = onShareLogs,
                 onShareSession = onShareSession
             )
             // Slider controls for simulated devices, drawn over every

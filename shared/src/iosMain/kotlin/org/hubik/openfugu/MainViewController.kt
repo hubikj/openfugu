@@ -43,9 +43,8 @@ fun MainViewController(): UIViewController = ComposeUIViewController {
         // CoreBluetooth raises its own permission prompt on first use, so
         // scanning can start straight away.
         onRequestPermissionsAndScan = { store.startScan() },
-        onSaveLogs = { messages ->
+        onShareLogs = { messages ->
             presentShareSheet("openfugu_log.txt", messages.joinToString("\n"))
-            "" // the share sheet is the feedback
         },
         onShareSession = { fileName, text -> presentShareSheet(fileName, text) }
     )

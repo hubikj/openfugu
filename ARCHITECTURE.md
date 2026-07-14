@@ -22,12 +22,13 @@ shared/                          — Kotlin Multiplatform module (Compose Multip
 │   ├── ExercisesTab.kt          — Game/exercise catalog, per-launch device picker, history
 │   ├── DevicesTab.kt            — Scan/connect UI, saved devices, device picker/edit dialogs
 │   ├── UsersTab.kt              — User profile list, paired devices
-│   ├── LogsTab.kt               — Debug log display, copy/save
+│   ├── LogsTab.kt               — Debug log display, copy/share
 │   │
 │   ├── ble/                     — Pressure sources and BLE-independent device model
 │   │   ├── Models.kt            — ScannedDevice, SavedDevice, PressureReading, ScanState, DeviceColors
-│   │   ├── BlePlatform.kt       — Platform seam: radio checks + legacy engine (interface),
-│   │   │                          KableOnlyBlePlatform for platforms without a legacy engine
+│   │   ├── BlePlatform.kt       — Platform seam: radio checks + power-state signal +
+│   │   │                          legacy engine (interface); KableOnlyBlePlatform for
+│   │   │                          platforms without a legacy engine
 │   │   ├── PressureSource.kt    — Abstract source: shared ingestion pipeline (calibration, history, chart)
 │   │   ├── KableDeviceConnection.kt — PressureSource over Kable (multiplatform BLE)
 │   │   ├── MockDeviceConnection.kt — Simulated PressureSource (20 Hz ticker, slider/sine driven)
@@ -60,12 +61,13 @@ shared/                          — Kotlin Multiplatform module (Compose Multip
 
 app/                             — Android application shell
 └── src/main/java/org/hubik/openfugu/
-    ├── MainActivity.kt          — Activity: permissions, import intents, share/save-logs
-    │                              callbacks, mounts OpenFuguRoot
+    ├── MainActivity.kt          — Activity: permissions, enable-Bluetooth prompt,
+    │                              import intents, share callbacks, mounts OpenFuguRoot
     └── ble/
         ├── EFuguViewModel.kt    — Thin AndroidViewModel wrapper constructing EFuguStore;
         │                          content-URI session import
-        ├── AndroidBlePlatform.kt — BlePlatform: radio/permission checks, legacy scan
+        ├── AndroidBlePlatform.kt — BlePlatform: radio/permission checks, power-state
+        │                          receiver, legacy scan
         ├── DeviceConnection.kt  — Legacy PressureSource over Android BluetoothGatt
         └── EFuguUuids.kt        — java.util.UUID copies of EFuguIds for the legacy stack
 
@@ -74,7 +76,7 @@ iosApp/                          — iOS application shell (SwiftUI)
 └── OpenFugu/iOSApp.swift        — SwiftUI @main hosting the shared MainViewController
 ```
 
-**Module rule:** anything that imports `android.*` lives in `app`; everything else goes to `shared/commonMain`. Platform needs of common code are expressed as interfaces (`storage/Stores.kt`, `ble/BlePlatform.kt`), `expect`/`actual` (`util/AppLog.kt`, `platformColorScheme`), or callbacks injected by the platform shell into `OpenFuguRoot` (permissions/scan start, session import, log saving, session share).
+**Module rule:** anything that imports `android.*` lives in `app`; everything else goes to `shared/commonMain`. Platform needs of common code are expressed as interfaces (`storage/Stores.kt`, `ble/BlePlatform.kt`), `expect`/`actual` (`util/AppLog.kt`, `platformColorScheme`), or callbacks injected by the platform shell into `OpenFuguRoot` (permissions/scan start, session import, log and session sharing).
 
 ## Data Flow
 
@@ -207,8 +209,8 @@ Everything above the BLE layer depends on `PressureSource`, never on a concrete 
 
 ### Two Bluetooth engines
 Real devices connect through one of two `PressureSource` implementations, selected by the "Bluetooth engine" developer setting (applies to new connections):
-- **Android** (default on Android): `DeviceConnection` in the app module — the proven BluetoothGatt implementation (MTU 517, main-thread-confined GATT callbacks). Reached through the `BlePlatform` interface (`AndroidBlePlatform`), which also owns the two-callback legacy scan and the radio/permission checks.
-- **Kable**: `KableDeviceConnection` in shared commonMain over the Kable multiplatform BLE library — the only engine on iOS (`KableOnlyBlePlatform`; the setting is hidden there). Scanning switches with it (one unfiltered Kable scan replaces the two legacy scans).
+- **Kable** (default): `KableDeviceConnection` in shared commonMain over the Kable multiplatform BLE library — the only engine on iOS (`KableOnlyBlePlatform`; the setting is hidden there), and the default on Android so both platforms share one code path. Scanning switches with it (one unfiltered Kable scan replaces the two legacy scans).
+- **Android**: `DeviceConnection` in the app module — the proven BluetoothGatt implementation (MTU 517, main-thread-confined GATT callbacks), kept as a fallback. Reached through the `BlePlatform` interface (`AndroidBlePlatform`), which also owns the two-callback legacy scan, the radio/permission checks, and the adapter power-state receiver (Bluetooth off drops real connections; back on clears the error and rescans).
 Both run the same sequence: subscribe pressure/battery notifications, read device info, send the 128-byte auth challenge (see PROTOCOL.md).
 
 ### User ≠ Device
@@ -265,7 +267,7 @@ Key points:
 - **Serialization:** kotlinx.serialization (JSON)
 - **Dates/times:** kotlinx-datetime
 - **Storage:** SharedPreferences/NSUserDefaults + files behind `KeyValueStore`/`FileStore`
-- **BLE:** Android BluetoothManager/BluetoothGatt (Android default) or Kable (multiplatform, only engine on iOS), switchable in settings behind `BlePlatform`
+- **BLE:** Kable (multiplatform, default everywhere, only engine on iOS) or Android BluetoothManager/BluetoothGatt (legacy fallback), switchable in settings behind `BlePlatform`
 - **Lifecycle:** AndroidViewModel wrapper on Android; process-lifetime store on iOS
 - **Min versions:** Android 15 (SDK 35), iOS 16
 - **Build:** Gradle with Kotlin DSL; AGP 9.1 + `com.android.kotlin.multiplatform.library` + Compose Multiplatform plugin; iOS app via XcodeGen + Xcode (`shared` builds a static framework, embedded by the `embedAndSignAppleFrameworkForXcode` script phase)

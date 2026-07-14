@@ -9,9 +9,13 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.ParcelUuid
+import androidx.core.content.ContextCompat
 
 /**
  * [BlePlatform] for Android: radio/permission checks plus the legacy
@@ -27,6 +31,37 @@ class AndroidBlePlatform(private val context: Context) : BlePlatform {
     private var scanner: BluetoothLeScanner? = null
     private var filteredCallback: ScanCallback? = null
     private var unfilteredCallback: ScanCallback? = null
+
+    private var onBluetoothPoweredChanged: ((Boolean) -> Unit)? = null
+
+    private val stateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1)) {
+                BluetoothAdapter.STATE_ON -> onBluetoothPoweredChanged?.invoke(true)
+                BluetoothAdapter.STATE_OFF -> onBluetoothPoweredChanged?.invoke(false)
+            }
+        }
+    }
+
+    init {
+        // System broadcasts reach not-exported receivers; the flag only shuts
+        // out other apps.
+        ContextCompat.registerReceiver(
+            context,
+            stateReceiver,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
+    }
+
+    override fun setBluetoothStateListener(onPoweredChanged: (poweredOn: Boolean) -> Unit) {
+        onBluetoothPoweredChanged = onPoweredChanged
+    }
+
+    override fun close() {
+        context.unregisterReceiver(stateReceiver)
+        onBluetoothPoweredChanged = null
+    }
 
     override fun bluetoothUnavailableReason(): String? {
         val adapter = bluetoothAdapter ?: return "Bluetooth not available"

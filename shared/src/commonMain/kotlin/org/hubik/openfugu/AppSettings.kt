@@ -20,7 +20,9 @@ enum class BleBackend(val label: String) {
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val showSimulatedDevices: Boolean = false,
-    val bleBackend: BleBackend = BleBackend.ANDROID
+    // Kable everywhere: it is the only engine on iOS, so defaulting to it on
+    // Android too keeps both platforms on the same code path.
+    val bleBackend: BleBackend = BleBackend.KABLE
 ) {
     fun toJsonString(): String = buildJsonObject {
         put("themeMode", themeMode.name)
@@ -39,7 +41,7 @@ data class AppSettings(
                 showSimulatedDevices = obj.boolean("showSimulatedDevices", false),
                 bleBackend = obj.stringOrNull("bleBackend")
                     ?.let { name -> BleBackend.entries.firstOrNull { it.name == name } }
-                    ?: BleBackend.ANDROID
+                    ?: BleBackend.KABLE
             )
         } catch (e: Exception) {
             AppSettings()

@@ -19,7 +19,7 @@ fun LogsTab(
     logMessages: List<String>,
     appVersion: String,
     onShowMessage: (String) -> Unit,
-    onSaveLogs: () -> String,
+    onShareLogs: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -28,7 +28,7 @@ fun LogsTab(
             .padding(horizontal = 16.dp)
             .padding(top = 8.dp, bottom = 8.dp)
     ) {
-        LogHeader(logMessages, appVersion, onShowMessage, onSaveLogs)
+        LogHeader(logMessages, appVersion, onShowMessage, onShareLogs)
         Spacer(modifier = Modifier.height(4.dp))
         LogDisplay(messages = logMessages, modifier = Modifier.weight(1f))
     }
@@ -39,7 +39,7 @@ fun LogHeader(
     messages: List<String>,
     appVersion: String,
     onShowMessage: (String) -> Unit,
-    onSaveLogs: () -> String
+    onShareLogs: () -> Unit
 ) {
     val clipboard = LocalClipboardManager.current
     Row(
@@ -63,10 +63,11 @@ fun LogHeader(
             }) {
                 Text("Copy", fontSize = 12.sp)
             }
-            // An empty result means the platform gave its own feedback
-            // (e.g. the iOS share sheet) — nothing further to show.
-            TextButton(onClick = { onSaveLogs().takeIf { it.isNotEmpty() }?.let(onShowMessage) }) {
-                Text("Save", fontSize = 12.sp)
+            // Share sheet instead of a save-to-file: app-private storage is
+            // not reachable with a file manager, so "saving" there helped
+            // nobody. The share sheet covers save-to-Files, email, and drive.
+            TextButton(onClick = onShareLogs) {
+                Text("Share", fontSize = 12.sp)
             }
         }
     }

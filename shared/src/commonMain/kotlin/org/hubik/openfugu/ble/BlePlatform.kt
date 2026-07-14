@@ -36,6 +36,17 @@ interface BlePlatform {
         onLog: (String) -> Unit,
         onUnexpectedDisconnect: () -> Unit
     ): PressureSource
+
+    /**
+     * Register the store's reaction to the radio powering on or off. Needed
+     * because turning Bluetooth off on Android does not reliably deliver
+     * GATT disconnect callbacks — without this, dead connections linger in
+     * the UI. Platforms without such a signal keep the no-op default.
+     */
+    fun setBluetoothStateListener(onPoweredChanged: (poweredOn: Boolean) -> Unit) {}
+
+    /** Release platform resources (Android: the state broadcast receiver). */
+    fun close() {}
 }
 
 /**

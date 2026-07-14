@@ -121,6 +121,29 @@ class EFuguStore(
         loadSavedDevices()
         loadUserProfiles()
         loadDeviceUserPairings()
+
+        ble.setBluetoothStateListener { poweredOn ->
+            if (poweredOn) {
+                // The radio is back: replace the stale "Bluetooth is disabled"
+                // error with a live scan. Auto-connect then restores the MRU
+                // device, so a Bluetooth toggle heals without user action.
+                if (_scanState.value is ScanState.Error) startScan()
+            } else {
+                // Drop real connections ourselves — the legacy engine gets no
+                // GATT callback for this, leaving dead entries in the UI. Not
+                // marked manually-disconnected: these devices should reconnect
+                // when the radio returns. Simulated devices keep running.
+                if (_scanState.value is ScanState.Scanning) stopScan()
+                _scanState.value = ScanState.Error("Bluetooth is disabled")
+                _connections.value
+                    .filterKeys { !MockDeviceConnection.isMockAddress(it) }
+                    .forEach { (address, connection) ->
+                        connection.disconnect()
+                        removeConnection(address)
+                        log("Disconnected ${connection.displayName} — Bluetooth turned off")
+                    }
+            }
+        }
         scope.launch {
             _recentSessions.value = sessionRepository.loadIndex()
         }
@@ -675,5 +698,6 @@ class EFuguStore(
     fun shutdown() {
         stopScan()
         disconnectAll()
+        ble.close()
     }
 }

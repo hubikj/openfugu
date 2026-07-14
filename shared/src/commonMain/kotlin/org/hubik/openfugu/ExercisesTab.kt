@@ -1,6 +1,5 @@
 package org.hubik.openfugu
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -321,22 +320,26 @@ fun ExercisesTab(
                             pendingDeletes = pendingDeletes + entry.id
                             false
                         } else true
-                    }
+                    },
+                    // The 56 dp default fires on slightly diagonal list
+                    // scrolls; deleting must take a committed swipe across
+                    // most of the row.
+                    positionalThreshold = { totalDistance -> totalDistance * 0.6f }
                 )
                 SwipeToDismissBox(
                     state = dismissState,
+                    // One direction is enough for delete and halves the
+                    // surface for accidental swipes.
+                    enableDismissFromStartToEnd = false,
                     backgroundContent = {
-                        val color by animateColorAsState(
-                            if (dismissState.targetValue != SwipeToDismissBoxValue.Settled)
-                                AppColors.outOfRange
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            label = "swipeBg"
-                        )
+                        // Constant red: the revealed area itself signals how
+                        // far along the delete is — a card-colored background
+                        // made the swipe nearly invisible.
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp, vertical = 2.dp)
-                                .background(color, MaterialTheme.shapes.medium),
+                                .background(MaterialTheme.colorScheme.error, MaterialTheme.shapes.medium),
                             contentAlignment = Alignment.CenterEnd
                         ) {
                             Text(

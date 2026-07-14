@@ -1,6 +1,8 @@
 package org.hubik.openfugu
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -36,6 +38,14 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         val allGranted = permissions.values.all { it }
         if (allGranted) {
+            ensureBluetoothOnAndScan()
+        }
+    }
+
+    private val enableBluetoothLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
             efuguViewModel.store.startScan()
         }
     }
@@ -58,8 +68,14 @@ class MainActivity : ComponentActivity() {
                 onRequestPermissionsAndScan = { requestPermissionsAndScan() },
                 importSession = importLoader,
                 onImportSessionHandled = { importIntent = null },
-                onSaveLogs = ::saveLogsToFile,
-                onShareSession = ::shareSessionFile
+                onShareLogs = { messages ->
+                    // text/plain rather than the session MIME type: log shares
+                    // should offer text targets, not reimport into OpenFugu.
+                    shareTextFile("openfugu_log.txt", messages.joinToString("\n"), "text/plain")
+                },
+                onShareSession = { fileName, text ->
+                    shareTextFile(fileName, text, "application/octet-stream")
+                }
             )
         }
     }
@@ -75,16 +91,8 @@ class MainActivity : ComponentActivity() {
         else -> null
     }
 
-    private fun saveLogsToFile(messages: List<String>): String = try {
-        val file = File(getExternalFilesDir(null), "openfugu_log.txt")
-        file.writeText(messages.joinToString("\n"))
-        "Saved: ${file.absolutePath}"
-    } catch (e: Exception) {
-        "Could not save logs"
-    }
-
-    /** Write the session to a cache file and hand it to the system share sheet. */
-    private fun shareSessionFile(fileName: String, text: String) {
+    /** Write [text] to a cache file and hand it to the system share sheet. */
+    private fun shareTextFile(fileName: String, text: String, mimeType: String) {
         lifecycleScope.launch {
             try {
                 val file = withContext(Dispatchers.IO) {
@@ -98,11 +106,11 @@ class MainActivity : ComponentActivity() {
                 }
                 val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", file)
                 val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/octet-stream"
+                    type = mimeType
                     putExtra(Intent.EXTRA_STREAM, uri)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                startActivity(Intent.createChooser(intent, "Share session"))
+                startActivity(Intent.createChooser(intent, "Share"))
             } catch (e: Exception) {
                 efuguViewModel.store.postUserMessage("Failed to share: ${e.message}")
             }
@@ -120,9 +128,23 @@ class MainActivity : ComponentActivity() {
         }
 
         if (notGranted.isEmpty()) {
-            efuguViewModel.store.startScan()
+            ensureBluetoothOnAndScan()
         } else {
             permissionLauncher.launch(notGranted.toTypedArray())
+        }
+    }
+
+    /**
+     * Offer the system enable-Bluetooth dialog when the radio is off instead
+     * of failing straight into the "Bluetooth is disabled" state. Requires
+     * BLUETOOTH_CONNECT, so this only runs after permissions are granted.
+     */
+    private fun ensureBluetoothOnAndScan() {
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter
+        if (adapter != null && !adapter.isEnabled) {
+            enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+        } else {
+            efuguViewModel.store.startScan()
         }
     }
 }

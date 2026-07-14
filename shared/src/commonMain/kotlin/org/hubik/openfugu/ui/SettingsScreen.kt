@@ -98,8 +98,9 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Bluetooth engine", style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "Kable is the experimental cross-platform engine; Android is the " +
-                        "proven one. Applies to devices connected from now on.",
+                    "Kable is the cross-platform engine and the default; Android is " +
+                        "the legacy engine, kept as a fallback. Applies to devices " +
+                        "connected from now on.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
