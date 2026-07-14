@@ -3,7 +3,6 @@ package org.hubik.openfugu.game
 import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.TextMeasurer
@@ -43,7 +42,6 @@ val GameSeabedColor = Color(0xFF1A2D40)
 private val FishColor = Color(0xFFFFB347)
 private val FishEyeWhite = Color(0xFFFFFFFF)
 private val FishEyeBlack = Color(0xFF000000)
-private val FishTailColor = Color(0xFFFF8C00)
 
 // =============================================================================
 // Shared game logic

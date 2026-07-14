@@ -219,7 +219,7 @@ fun EFuguApp(
     // Multiplayer game routing (two or more devices selected at launch)
     if (activeGame != null && activeGameDeviceAddresses.size >= 2 && selectedTab == 1) {
         val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
-        val onSaveSession = { session: org.hubik.openfugu.session.Session -> store.saveSession(session) }
+        val onSaveSession = { session: Session -> store.saveSession(session) }
         BackHandler { onGameBack() }
         // Every player gets a distinct color: the first device with a given
         // saved color keeps it; later duplicates and colorless devices get a
@@ -292,7 +292,7 @@ fun EFuguApp(
             val devName = savedDevice?.displayName ?: connection.displayName
             val usrName = userProfile?.name
             val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }
-            val onSaveSession = { session: org.hubik.openfugu.session.Session -> store.saveSession(session) }
+            val onSaveSession = { session: Session -> store.saveSession(session) }
             when (activeGame) {
                 "reef" -> FuguReefScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)
                 "feast" -> FuguFeastScreen(connection = connection, onBack = onGameBack, pressureRange = range, negativeRange = negRange, expertMode = expert, deviceName = devName, userName = usrName, onSessionSave = onSaveSession)

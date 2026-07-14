@@ -21,8 +21,6 @@ import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.PressureReading
 import org.hubik.openfugu.ble.PressureSource
-import org.hubik.openfugu.ble.SavedDevice
-import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.util.formatHPa
 
 // =============================================================================

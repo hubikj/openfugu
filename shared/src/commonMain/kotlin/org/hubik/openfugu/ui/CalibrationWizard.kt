@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.ble.DeviceConnectionState
