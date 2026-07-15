@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -509,20 +511,35 @@ private fun CalibrationGateDialog(
                     if (userProfiles.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(12.dp))
                         userProfiles.forEach { profile ->
-                            Row(
+                            // Tonal rounded rows with a ripple so the list
+                            // reads as tappable, not as a static summary.
+                            Surface(
+                                onClick = { onAssignUser(profile.id) },
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.surfaceVariant,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onAssignUser(profile.id) }
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(vertical = 3.dp)
                             ) {
-                                Text(profile.name, modifier = Modifier.weight(1f))
-                                Text(
-                                    if (profile.minEqPressureHPa != null) "Calibrated"
-                                    else "Not calibrated",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(profile.name, modifier = Modifier.weight(1f))
+                                    Text(
+                                        if (profile.minEqPressureHPa != null) "Calibrated"
+                                        else "Not calibrated",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
