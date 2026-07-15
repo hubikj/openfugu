@@ -21,8 +21,8 @@ targets:
       path: OpenFugu/Info.plist
       properties:
         CFBundleDisplayName: OpenFugu
-        CFBundleShortVersionString: "1.3.0"
-        CFBundleVersion: "5"
+        CFBundleShortVersionString: "1.4.0"
+        CFBundleVersion: "6"
         UILaunchScreen: {}
         # Portrait only, like Android, until landscape layouts exist.
         UISupportedInterfaceOrientations:
