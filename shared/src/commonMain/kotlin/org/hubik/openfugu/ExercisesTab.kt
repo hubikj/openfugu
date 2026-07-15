@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ble.PressureSource
@@ -119,6 +121,14 @@ private val gameEntries = listOf(
     )
 )
 
+/**
+ * Why a calibration-gated entry cannot launch on a device. The distinction
+ * matters: "assign a user" and "run the calibration wizard" are different
+ * actions, and showing the wrong one sends people hunting for a problem
+ * they don't have.
+ */
+private enum class CalibrationGate { NO_USER_ASSIGNED, USER_NOT_CALIBRATED }
+
 private val exerciseEntries = listOf(
     ExerciseEntry(
         id = "min_eq",
@@ -175,6 +185,8 @@ fun ExercisesTab(
     onSessionClick: (String) -> Unit = {},
     onDeleteSession: (String) -> Unit = {},
     onPairUser: (String, String?) -> Unit,
+    onCreateAndPairUser: (deviceAddress: String, name: String) -> Unit = { _, _ -> },
+    onStartCalibration: (userId: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -190,10 +202,22 @@ fun ExercisesTab(
 
     // Which entry the device picker is open for (null = closed)
     var pickerEntry by remember { mutableStateOf<ExerciseEntry?>(null) }
+    // Which device address the calibration-gate dialog is open for (null = closed)
+    var gateDialogAddress by remember { mutableStateOf<String?>(null) }
 
     fun userFor(address: String): UserProfile? {
         val userId = deviceUserPairings.find { it.deviceAddress == address }?.userId
         return userProfiles.find { it.id == userId }
+    }
+
+    fun calibrationGateFor(entry: ExerciseEntry, address: String): CalibrationGate? {
+        if (!entry.requiresMinEqCalibration) return null
+        val user = userFor(address)
+        return when {
+            user == null -> CalibrationGate.NO_USER_ASSIGNED
+            user.minEqPressureHPa == null -> CalibrationGate.USER_NOT_CALIBRATED
+            else -> null
+        }
     }
 
     // One connected device: launch on it directly (unless the entry needs
@@ -240,10 +264,8 @@ fun ExercisesTab(
         } else { Column(modifier = Modifier.padding(horizontal = 16.dp).padding(top = 8.dp)) {
             // With exactly one device connected the calibration requirement
             // gates the card itself; with several devices the card stays
-            // enabled and the picker greys out uncalibrated devices instead.
+            // enabled and the picker greys out ineligible devices instead.
             val singleDevice = connectedList.singleOrNull()
-            val singleDeviceHasMinEq = singleDevice != null &&
-                userFor(singleDevice.address)?.minEqPressureHPa != null
 
             Text("Games", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
@@ -262,14 +284,23 @@ fun ExercisesTab(
             Spacer(modifier = Modifier.height(8.dp))
             exerciseEntries.forEachIndexed { index, entry ->
                 if (index > 0) Spacer(modifier = Modifier.height(8.dp))
-                val enabled = !entry.requiresMinEqCalibration ||
-                    singleDevice == null || singleDeviceHasMinEq
+                val gate = singleDevice?.let { calibrationGateFor(entry, it.address) }
                 ExerciseCard(
                     entry = entry,
-                    enabled = enabled,
-                    description = if (enabled) entry.description
-                        else "Requires minimum equalization calibration first",
-                    onClick = { launchEntry(entry) }
+                    enabled = gate == null,
+                    description = when (gate) {
+                        null -> entry.description
+                        CalibrationGate.NO_USER_ASSIGNED ->
+                            "Assign a user to your device first"
+                        CalibrationGate.USER_NOT_CALIBRATED ->
+                            "Requires minimum equalization calibration first"
+                    },
+                    // A gated card stays tappable: the tap opens a dialog that
+                    // resolves the gate instead of a dead end.
+                    onClick = {
+                        if (gate == null) launchEntry(entry)
+                        else gateDialogAddress = singleDevice?.address
+                    }
                 )
             }
         } }
@@ -416,14 +447,127 @@ fun ExercisesTab(
                 onGameStart(entry.id, selected)
             },
             disabledReason = { device ->
-                if (entry.requiresMinEqCalibration && userFor(device.address)?.minEqPressureHPa == null)
-                    "Requires calibration"
-                else null
+                when (calibrationGateFor(entry, device.address)) {
+                    null -> null
+                    CalibrationGate.NO_USER_ASSIGNED -> "No user assigned"
+                    CalibrationGate.USER_NOT_CALIBRATED -> "Requires calibration"
+                }
             },
             onPairUser = onPairUser,
             onDismiss = { pickerEntry = null }
         )
     }
+
+    gateDialogAddress?.let { address ->
+        val deviceUser = userFor(address)
+        if (deviceUser?.minEqPressureHPa != null) {
+            // Resolved (user assigned and calibrated) — the card is enabled
+            // now and the next tap launches the exercise.
+            LaunchedEffect(Unit) { gateDialogAddress = null }
+        } else {
+            CalibrationGateDialog(
+                deviceUser = deviceUser,
+                userProfiles = userProfiles,
+                onAssignUser = { userId -> onPairUser(address, userId) },
+                onCreateUser = { name -> onCreateAndPairUser(address, name) },
+                onCalibrate = { userId ->
+                    gateDialogAddress = null
+                    onStartCalibration(userId)
+                },
+                onDismiss = { gateDialogAddress = null }
+            )
+        }
+    }
+}
+
+/**
+ * Resolves a calibration gate in place instead of leaving a greyed-out dead
+ * end. Branches on the live pairing state, so assigning an uncalibrated user
+ * flips the dialog straight to the calibration offer.
+ */
+@Composable
+private fun CalibrationGateDialog(
+    deviceUser: UserProfile?,
+    userProfiles: List<UserProfile>,
+    onAssignUser: (userId: String) -> Unit,
+    onCreateUser: (name: String) -> Unit,
+    onCalibrate: (userId: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var newUserName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (deviceUser == null) "Assign a User" else "Calibration Needed") },
+        text = {
+            if (deviceUser == null) {
+                Column {
+                    Text(
+                        "This exercise builds its target range from the calibration " +
+                            "of the user assigned to your device."
+                    )
+                    if (userProfiles.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        userProfiles.forEach { profile ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onAssignUser(profile.id) }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(profile.name, modifier = Modifier.weight(1f))
+                                Text(
+                                    if (profile.minEqPressureHPa != null) "Calibrated"
+                                    else "Not calibrated",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        HorizontalDivider()
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = newUserName,
+                            onValueChange = { newUserName = it },
+                            label = { Text("New user") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(
+                            onClick = {
+                                onCreateUser(newUserName.trim())
+                                newUserName = ""
+                            },
+                            enabled = newUserName.isNotBlank()
+                        ) { Text("Create") }
+                    }
+                }
+            } else {
+                Text(
+                    "${deviceUser.name} has no minimum equalization calibration yet. " +
+                        "The calibration wizard measures it, and this exercise builds " +
+                        "its target range from the result."
+                )
+            }
+        },
+        confirmButton = {
+            if (deviceUser == null) {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            } else {
+                TextButton(onClick = { onCalibrate(deviceUser.id) }) { Text("Calibrate Now") }
+            }
+        },
+        dismissButton = {
+            if (deviceUser != null) {
+                TextButton(onClick = onDismiss) { Text("Later") }
+            }
+        }
+    )
 }
 
 @Composable
@@ -434,12 +578,11 @@ private fun ExerciseCard(
     onClick: () -> Unit
 ) {
     Card(
+        // Clickable even when gated — the caller routes the tap to a dialog
+        // that resolves the gate (assign a user / calibrate).
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (enabled) Modifier.clickable(onClick = onClick)
-                else Modifier
-            ),
+            .clickable(onClick = onClick),
         colors = if (enabled) CardDefaults.cardColors()
             else CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
     ) {

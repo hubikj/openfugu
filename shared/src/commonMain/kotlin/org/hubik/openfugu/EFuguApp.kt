@@ -72,6 +72,9 @@ fun EFuguApp(
     var showSettings by remember { mutableStateOf(false) }
     var showUserDetail by remember { mutableStateOf<String?>(null) }
     var calibratingUserId by remember { mutableStateOf<String?>(null) }
+    // The wizard normally returns to the user detail screen it was started
+    // from; started from an Exercises-tab calibration gate it returns there.
+    var calibrationReturnsToExercises by remember { mutableStateOf(false) }
     var viewingSessionId by remember { mutableStateOf<String?>(null) }
 
     val connections by store.connections.collectAsState()
@@ -174,6 +177,7 @@ fun EFuguApp(
             onBack = { showUserDetail = null },
             onStartCalibration = { userId ->
                 showUserDetail = null
+                calibrationReturnsToExercises = false
                 calibratingUserId = userId
             },
             onDeleted = { showUserDetail = null }
@@ -196,22 +200,18 @@ fun EFuguApp(
     // Full-screen calibration wizard
     if (calibratingUserId != null) {
         val returnToUser = calibratingUserId
-        BackHandler {
+        val closeWizard: () -> Unit = {
             calibratingUserId = null
-            showUserDetail = returnToUser
+            if (!calibrationReturnsToExercises) showUserDetail = returnToUser
+            calibrationReturnsToExercises = false
         }
+        BackHandler { closeWizard() }
         CalibrationWizard(
             store = store,
             userId = calibratingUserId!!,
             connections = connections,
-            onBack = {
-                calibratingUserId = null
-                showUserDetail = returnToUser
-            },
-            onComplete = {
-                calibratingUserId = null
-                showUserDetail = returnToUser
-            }
+            onBack = closeWizard,
+            onComplete = closeWizard
         )
         return
     }
@@ -422,6 +422,14 @@ fun EFuguApp(
                 onPairUser = { addr, userId ->
                     if (userId != null) store.pairDeviceToUser(addr, userId)
                     else store.unpairDevice(addr)
+                },
+                onCreateAndPairUser = { addr, name ->
+                    val profile = store.addUser(name)
+                    store.pairDeviceToUser(addr, profile.id)
+                },
+                onStartCalibration = { userId ->
+                    calibrationReturnsToExercises = true
+                    calibratingUserId = userId
                 },
                 modifier = Modifier.padding(padding)
             )
