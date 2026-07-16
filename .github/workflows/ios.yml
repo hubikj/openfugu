@@ -1,10 +1,12 @@
 name: iOS
 
 # Builds the unsigned .ipa on every push to main and kmp-* branches.
-# Sideloadly/AltServer re-sign the artifact with a free Apple ID for
-# on-device testing (see IDEAS.md — iOS milestones). Apple-target Kotlin
-# only compiles on macOS, so this workflow is also where iosMain compile
-# errors surface.
+# SideStore re-signs builds on-device with a free Apple ID (see IDEAS.md —
+# iOS milestones). Pushes to main additionally publish the ipa plus a
+# SideStore source.json to the rolling `ios-dev-latest` prerelease, so
+# phones with the source added pick every build up as an update.
+# Apple-target Kotlin only compiles on macOS, so this workflow is also
+# where iosMain compile errors surface.
 # The macOS job takes ~15 minutes, so it only runs when something that can
 # affect the iOS build changes (shared module, iosApp shell, build config).
 # Pushes touching only app/ or docs skip it; workflow_dispatch forces a run.
@@ -24,6 +26,8 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 90
+    permissions:
+      contents: write  # publish the ios-dev-latest rolling release
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +64,15 @@ jobs:
             -derivedDataPath iosApp/build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
+      # SideStore detects updates by comparing versions, so every dev build
+      # needs a distinct, monotonically increasing one.
+      - name: Stamp dev build version
+        run: |
+          PLIST=iosApp/build/Build/Products/Release-iphoneos/OpenFugu.app/Info.plist
+          BASE=$(plutil -extract CFBundleShortVersionString raw "$PLIST")
+          plutil -replace CFBundleShortVersionString -string "$BASE.$GITHUB_RUN_NUMBER" "$PLIST"
+          plutil -replace CFBundleVersion -string "$GITHUB_RUN_NUMBER" "$PLIST"
+
       - name: Package unsigned IPA
         run: |
           cd iosApp/build/Build/Products/Release-iphoneos
@@ -73,3 +86,31 @@ jobs:
           path: iosApp/build/Build/Products/Release-iphoneos/OpenFugu-unsigned.ipa
           # Sideload artifacts go stale fast; no need for the 90-day default.
           retention-days: 14
+
+      # Rolling prerelease with stable asset URLs: phones with the SideStore
+      # source added poll source.json and offer each main build as an update.
+      - name: Publish SideStore source (main only)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd iosApp/build/Build/Products/Release-iphoneos
+          cp OpenFugu-unsigned.ipa OpenFugu.ipa
+          VERSION=$(plutil -extract CFBundleShortVersionString raw Payload/OpenFugu.app/Info.plist)
+          python3 "$GITHUB_WORKSPACE/.github/scripts/make_sidestore_source.py" \
+            "$VERSION" OpenFugu.ipa source.json
+          {
+            echo "Rolling unsigned iOS build of \`main\` for SideStore."
+            echo
+            echo "Version $VERSION, commit $GITHUB_SHA."
+            echo
+            echo "Add this source URL in SideStore (Sources → +):"
+            echo
+            echo "\`https://github.com/$GITHUB_REPOSITORY/releases/download/ios-dev-latest/source.json\`"
+          } > notes.md
+          gh release view ios-dev-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create ios-dev-latest --repo "$GITHUB_REPOSITORY" \
+              --prerelease --title "iOS development build (rolling)" --notes-file notes.md
+          gh release upload ios-dev-latest OpenFugu.ipa source.json \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit ios-dev-latest --repo "$GITHUB_REPOSITORY" --notes-file notes.md

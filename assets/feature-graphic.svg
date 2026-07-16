@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <!-- Play feature graphic 1024x500: fugu + wordmark over a controlled
+       pressure trace inside a target range band (the app's core metaphor). -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#122B3D"/>
+      <stop offset="1" stop-color="#0D1B2A"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="500" fill="url(#bg)"/>
+
+  <!-- target range band -->
+  <rect x="0" y="360" width="1024" height="80" fill="#4EC4DE" opacity="0.08"/>
+  <line x1="0" y1="360" x2="1024" y2="360" stroke="#4EC4DE" opacity="0.25" stroke-width="2" stroke-dasharray="10 8"/>
+  <line x1="0" y1="440" x2="1024" y2="440" stroke="#4EC4DE" opacity="0.25" stroke-width="2" stroke-dasharray="10 8"/>
+
+  <!-- pressure trace: steady controlled wave inside the band (glow + line) -->
+  <path d="M0,430 C60,430 80,380 140,380 C200,380 220,428 280,428 C340,428 360,382 420,382 C480,382 500,426 560,426 C620,426 640,384 700,384 C760,384 780,428 840,428 C900,428 920,380 1024,382"
+        fill="none" stroke="#4EC4DE" stroke-width="14" opacity="0.18" stroke-linecap="round"/>
+  <path d="M0,430 C60,430 80,380 140,380 C200,380 220,428 280,428 C340,428 360,382 420,382 C480,382 500,426 560,426 C620,426 640,384 700,384 C760,384 780,428 840,428 C900,428 920,380 1024,382"
+        fill="none" stroke="#4EC4DE" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- fugu, centered around (195, 220) -->
+  <g transform="translate(-44.2,-16.9) scale(4.6)">
+    <path fill="#ff8c00" d="M40.3 55.4 24.7 45 24.7 65.8Z"/>
+    <path fill="#ff8c00" d="M53.3 37.2 59.8 26.8 66.3 37.2Z"/>
+    <circle cx="58.5" cy="55.4" r="20.8" fill="#ffb347"/>
+    <circle cx="66.3" cy="51.5" r="5.9" fill="#fff"/>
+    <circle cx="67.6" cy="51.5" r="2.9" fill="#000"/>
+    <path d="M75.4 58 71.5 59.3" stroke="#000" stroke-width="2"/>
+  </g>
+
+  <!-- wordmark + tagline -->
+  <text x="370" y="245" font-family="Roboto" font-weight="500" font-size="120" fill="#E4EFF5">OpenFugu</text>
+  <text x="374" y="312" font-family="Roboto" font-weight="400" font-size="38" fill="#8DA9BA">Freediving equalization training</text>
+</svg>

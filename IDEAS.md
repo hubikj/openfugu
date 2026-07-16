@@ -340,5 +340,6 @@ If desktop support is ever wanted, it falls out of the Kotlin Multiplatform rest
 - [ ] Figure out what the `dcdf` BLE characteristic does (exercise start/stop? device config? LED control?) — needs another HCI snoop while using the official app's exercise modes
 
 ## Low Priority
+- [x] Move brand/icon source assets into a committed `assets/` directory (done 2026-07-16 — `assets/` holds `icon-512.svg` + `feature-graphic.svg` with a README; iOS AppIcon renders from the icon SVG)
 - [ ] Simulated dive mode — dry-run dive training: simulates the length of a breath hold and the frequency of equalizations. The user declares the depth at their first equalization; the app then predicts the following equalization points (same relative pressure-change intervals) down to the target depth and prompts the user to equalize at each one. The official app already has this; our focus is on games and instructor features. (Not to be confused with the shipped simulated device — this uses a real device.)
 - [ ] Landscape orientation support

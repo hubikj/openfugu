@@ -24,6 +24,9 @@ targets:
         CFBundleShortVersionString: "1.4.0"
         CFBundleVersion: "6"
         UILaunchScreen: {}
+        # Compose Multiplatform's PlistSanityCheck aborts at launch on
+        # physical devices (not the simulator) when this key is missing.
+        CADisableMinimumFrameDurationOnPhone: true
         # Portrait only, like Android, until landscape layouts exist.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -35,6 +38,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.hubik.openfugu
         TARGETED_DEVICE_FAMILY: "1"
+        # Single-size 1024px icon rendered from assets/icon-512.svg.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
         OTHER_LDFLAGS: "$(inherited) -framework OpenFuguShared"
     preBuildScripts:
