@@ -1,9 +1,10 @@
 # OpenFugu
 
-OpenFugu is an unofficial, open-source Android app for the **eFugu** freediving pressure
+OpenFugu is an unofficial, open-source app for the **eFugu** freediving pressure
 device. It connects over Bluetooth LE, streams real-time nasal pressure, and turns
-equalization practice into exercises and games that reward control, not force. Built in
-Kotlin and Jetpack Compose.
+equalization practice into exercises and games that reward control, not force. Built
+with Kotlin Multiplatform and Compose Multiplatform — Android first, with an iOS port
+in progress.
 
 > [!IMPORTANT]
 > **Not affiliated with eFugu.** This is a community-built app for hardware you own — it is
@@ -39,7 +40,9 @@ Kotlin and Jetpack Compose.
   - **Fugu Feast** — eat smaller fish to grow, avoid bigger ones.
   - **Fugu Cave** — navigate a narrowing procedurally generated cave.
   - **Fugu Flow** — a rhythm game; trace a scrolling target pressure curve.
-  - **Multiplayer Fugu Reef** — 2–7 players race the same course, last fugu standing.
+  - **Multiplayer Fugu Reef, Fugu Feast & Fugu Cave** — two or more devices share one
+    screen, each fugu in its player's color. Knocked-out fugus sit out while the rest
+    play on; the final scoreboard ranks everyone by score.
 - **Sessions** — exercises and games auto-save. Replay them on a full chart with
   exercise-specific overlays, see your stats, and share or delete them.
 
@@ -58,9 +61,13 @@ Pressure training should never reward pushing harder. OpenFugu enforces this in 
 
 ## Tech stack
 
-- **Kotlin** + **Jetpack Compose** (Material 3), `StateFlow`/coroutines, `AndroidViewModel`.
-- Raw Android `BluetoothGatt` (no third-party BLE library).
-- `minSdk 35` (Android 15), `targetSdk 36`. Portrait orientation.
+- **Kotlin Multiplatform** + **Compose Multiplatform** (Material 3): screens, games,
+  exercises, and detectors live in the shared module; the Android and iOS apps are
+  thin shells around it.
+- BLE via **Kable** (multiplatform, the default engine) with the legacy Android
+  `BluetoothGatt` engine as a developer-selectable fallback.
+- Android: `minSdk 35` (Android 15), `targetSdk 36`. iOS: 16+ (the app runs;
+  real-device Bluetooth is the next milestone). Portrait orientation.
 
 ## Building
 
@@ -89,6 +96,13 @@ JAVA_HOME=<path-to-jdk> ./gradlew assembleRelease
 ```
 
 Without a `keystore.properties`, `assembleRelease` produces an unsigned APK.
+
+### iOS
+
+Apple toolchains only run on macOS, so the iOS app is built by CI: every push to
+`main` publishes an unsigned `.ipa` plus a SideStore source feed to the rolling
+[`ios-dev-latest`](https://github.com/hubikj/openfugu-android/releases/tag/ios-dev-latest)
+release — see its notes for the source URL to add in SideStore.
 
 ## Documentation
 

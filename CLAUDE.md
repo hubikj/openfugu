@@ -17,7 +17,7 @@ Read before making changes:
 Read only when working on BLE layer or protocol investigation:
 - **PROTOCOL.md** — BLE services, characteristics, auth flow, pressure data format
 
-**Keep docs in sync:** When completing a feature, update IDEAS.md. When changing app structure (new packages, navigation changes, new shared components), update ARCHITECTURE.md. When establishing a new convention or pattern, update this file.
+**Keep docs in sync:** When completing a feature, update IDEAS.md. Fully done tasks are deleted from IDEAS.md, not left as checked-off entries (milestone status notes stay). When changing app structure (new packages, navigation changes, new shared components), update ARCHITECTURE.md. When establishing a new convention or pattern, update this file.
 
 ## Build
 
