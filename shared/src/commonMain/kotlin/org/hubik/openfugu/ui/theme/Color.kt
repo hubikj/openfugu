@@ -5,8 +5,8 @@ import androidx.compose.ui.graphics.Color
 // Brand palette, shared with the website (openfugu-website/public/style.css):
 // a water column — surface light to depth dark — with dive-light cyan for
 // data and buoy orange as accent. Used by the static color schemes in
-// Theme.kt — the only schemes iOS ever sees (Android normally uses Material
-// You dynamic color instead).
+// Theme.kt — always on iOS; on Android only when "Use system colors" is
+// turned off (Material You dynamic color is the default there).
 val DiveCyan = Color(0xFF4EC4DE)       // --trace (dark): data, buttons, chart
 val DiveCyanDeep = Color(0xFF2F7590)   // --trace (light)
 // Accents deviate from the website's --accent on purpose: the fish's own

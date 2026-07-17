@@ -38,7 +38,8 @@ fun OpenFuguRoot(
             ThemeMode.SYSTEM -> isSystemInDarkTheme()
             ThemeMode.LIGHT -> false
             ThemeMode.DARK -> true
-        }
+        },
+        useSystemColors = appSettings.useSystemColors
     ) {
         val snackbarHostState = remember { SnackbarHostState() }
         LaunchedEffect(Unit) {

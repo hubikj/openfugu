@@ -39,6 +39,7 @@ import org.hubik.openfugu.session.Session
 import org.hubik.openfugu.session.SessionViewerScreen
 import org.hubik.openfugu.ui.CalibrationWizard
 import org.hubik.openfugu.ui.SettingsScreen
+import org.hubik.openfugu.ui.theme.hasPlatformColorScheme
 import org.hubik.openfugu.ui.UserDetailScreen
 
 // =============================================================================
@@ -159,8 +160,10 @@ fun EFuguApp(
         SettingsScreen(
             settings = appSettings,
             appVersion = appVersion,
+            showSystemColors = hasPlatformColorScheme,
             showBleEngine = store.hasLegacyBleEngine,
             onThemeModeChange = { store.updateAppSettings(appSettings.copy(themeMode = it)) },
+            onUseSystemColorsChange = { store.updateAppSettings(appSettings.copy(useSystemColors = it)) },
             onShowSimulatedDevicesChange = { store.updateAppSettings(appSettings.copy(showSimulatedDevices = it)) },
             onBleBackendChange = { store.updateAppSettings(appSettings.copy(bleBackend = it)) },
             onBack = { showSettings = false }

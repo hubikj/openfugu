@@ -19,6 +19,9 @@ enum class BleBackend(val label: String) {
 /** App-level settings — everything user-specific stays on UserProfile instead. */
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // Material You wallpaper colors on Android; ignored on platforms without
+    // a system palette (iOS), which always use the brand schemes.
+    val useSystemColors: Boolean = true,
     val showSimulatedDevices: Boolean = false,
     // Kable everywhere: it is the only engine on iOS, so defaulting to it on
     // Android too keeps both platforms on the same code path.
@@ -26,6 +29,7 @@ data class AppSettings(
 ) {
     fun toJsonString(): String = buildJsonObject {
         put("themeMode", themeMode.name)
+        put("useSystemColors", useSystemColors)
         put("showSimulatedDevices", showSimulatedDevices)
         put("bleBackend", bleBackend.name)
     }.toString()
@@ -38,6 +42,7 @@ data class AppSettings(
                 themeMode = obj.stringOrNull("themeMode")
                     ?.let { name -> ThemeMode.entries.firstOrNull { it.name == name } }
                     ?: ThemeMode.SYSTEM,
+                useSystemColors = obj.boolean("useSystemColors", true),
                 showSimulatedDevices = obj.boolean("showSimulatedDevices", false),
                 bleBackend = obj.stringOrNull("bleBackend")
                     ?.let { name -> BleBackend.entries.firstOrNull { it.name == name } }

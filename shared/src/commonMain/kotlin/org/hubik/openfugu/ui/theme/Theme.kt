@@ -83,13 +83,20 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 internal expect fun platformColorScheme(darkTheme: Boolean): ColorScheme?
 
+/**
+ * Whether [platformColorScheme] can return anything — gates the
+ * "Use system colors" setting, hidden on platforms that are always static.
+ */
+expect val hasPlatformColorScheme: Boolean
+
 @Composable
 fun OpenFuguTheme(
     darkTheme: Boolean,
+    useSystemColors: Boolean,
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = platformColorScheme(darkTheme)
+        colorScheme = (if (useSystemColors) platformColorScheme(darkTheme) else null)
             ?: if (darkTheme) DarkColorScheme else LightColorScheme,
         typography = Typography,
         content = content

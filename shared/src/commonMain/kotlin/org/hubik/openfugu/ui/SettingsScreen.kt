@@ -39,8 +39,10 @@ import org.hubik.openfugu.ThemeMode
 fun SettingsScreen(
     settings: AppSettings,
     appVersion: String,
+    showSystemColors: Boolean,
     showBleEngine: Boolean,
     onThemeModeChange: (ThemeMode) -> Unit,
+    onUseSystemColorsChange: (Boolean) -> Unit,
     onShowSimulatedDevicesChange: (Boolean) -> Unit,
     onBleBackendChange: (BleBackend) -> Unit,
     onBack: () -> Unit
@@ -80,6 +82,20 @@ fun SettingsScreen(
                         Text(mode.label)
                     }
                 }
+            }
+
+            // iOS has no system palette to follow — the toggle only exists
+            // where the platform offers one (Material You on Android).
+            if (showSystemColors) {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsToggleRow(
+                    title = "Use system colors",
+                    description = "Colors follow the palette Android builds from " +
+                        "the wallpaper. Turning this off uses OpenFugu's own " +
+                        "colors, the same on every device.",
+                    checked = settings.useSystemColors,
+                    onCheckedChange = onUseSystemColorsChange
+                )
             }
 
             SettingsSectionTitle("Developer")

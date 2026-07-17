@@ -268,7 +268,7 @@ Key points:
 ## Technology Stack
 
 - **Language:** Kotlin (Multiplatform: `shared` commonMain/androidMain/iosMain + Android `app` + SwiftUI `iosApp` shell)
-- **UI:** Compose Multiplatform + Material 3 (dynamic color on Android, static palette on iOS)
+- **UI:** Compose Multiplatform + Material 3 (Android defaults to dynamic color with a "Use system colors" setting to switch to the brand palette; iOS is always the brand palette)
 - **State:** StateFlow (Kotlin Coroutines)
 - **Serialization:** kotlinx.serialization (JSON)
 - **Dates/times:** kotlinx-datetime
