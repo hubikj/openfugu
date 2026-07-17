@@ -143,7 +143,8 @@ fun SingleDevicePanel(
                 chartMin = displayMin,
                 chartMax = displayMax,
                 isCalibrated = isCalibrated,
-                onRecalibrate = { store.resetCalibration(connection.address) }
+                onRecalibrate = { store.resetCalibration(connection.address) },
+                deviceColor = currentSaved.colorArgb?.let { Color(it.toInt()) }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -279,7 +280,8 @@ fun CompactDevicePanel(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = currentSaved.colorArgb?.let { Color(it.toInt()) }
+                            ?: MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     if (chartMin != null && chartMax != null) {
@@ -342,10 +344,14 @@ fun PressureDisplay(
     chartMin: Double?,
     chartMax: Double?,
     isCalibrated: Boolean,
-    onRecalibrate: () -> Unit
+    onRecalibrate: () -> Unit,
+    // The readout takes the device's assigned color (matching its chart
+    // trace) and stays neutral when none is assigned — an accent color here
+    // would clash with traces of unassigned devices.
+    deviceColor: Color? = null
 ) {
     // surfaceVariant, not primaryContainer: with some dynamic color schemes the
-    // dark-mode primaryContainer is light enough to wash out the primary-colored
+    // dark-mode primaryContainer is light enough to wash out a device-colored
     // pressure value (same issue as the pattern picker in FuguFlowGame).
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -363,7 +369,7 @@ fun PressureDisplay(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 40.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = deviceColor ?: MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))

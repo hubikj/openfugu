@@ -131,10 +131,13 @@ fun MockDeviceOverlay(store: EFuguStore) {
                         ) {
                             mocks.forEach { mock ->
                                 key(mock.address) {
+                                    // Fallback must match the chart's default
+                                    // trace color so slider and trace agree
+                                    // for color-less devices.
                                     val color = savedDevices
                                         .find { it.address == mock.address }?.colorArgb
                                         ?.let { Color(it.toInt()) }
-                                        ?: MaterialTheme.colorScheme.tertiary
+                                        ?: MaterialTheme.colorScheme.primary
                                     MockPressureSlider(
                                         mock = mock,
                                         color = color,
