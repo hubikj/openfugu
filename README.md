@@ -3,8 +3,8 @@
 OpenFugu is an unofficial, open-source app for the **eFugu** freediving pressure
 device. It connects over Bluetooth LE, streams real-time nasal pressure, and turns
 equalization practice into exercises and games that reward control, not force. Built
-with Kotlin Multiplatform and Compose Multiplatform — Android first, with an iOS port
-in progress.
+with Kotlin Multiplatform and Compose Multiplatform — Android first, with a working
+iOS port (distributed by sideloading for now).
 
 > [!IMPORTANT]
 > **Not affiliated with eFugu.** This is a community-built app for hardware you own — it is
@@ -66,8 +66,8 @@ Pressure training should never reward pushing harder. OpenFugu enforces this in 
   thin shells around it.
 - BLE via **Kable** (multiplatform, the default engine) with the legacy Android
   `BluetoothGatt` engine as a developer-selectable fallback.
-- Android: `minSdk 35` (Android 15), `targetSdk 36`. iOS: 16+ (the app runs;
-  real-device Bluetooth is the next milestone). Portrait orientation.
+- Android: `minSdk 35` (Android 15), `targetSdk 36`. iOS: 16+ (real devices work
+  over Bluetooth, including multiplayer). Portrait orientation.
 
 ## Building
 
