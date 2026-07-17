@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlin.math.sqrt
 import org.hubik.openfugu.util.fmt
 
 // =============================================================================
@@ -23,28 +22,49 @@ object AppColors {
     val inRangeBorder = Color(0xFF43A047).copy(alpha = 0.4f)
 }
 
-// Ceiling for device-color luminance on light surfaces. Gentle by design:
-// pushing yellow to full WCAG contrast would land it in olive/brown; a
-// slight deepening keeps it unmistakably yellow.
-private const val LIGHT_SURFACE_MAX_LUMINANCE = 0.45f
+// Hand-tuned in the color lab against the app's card surfaces (2026-07-17).
+// Hue-locked HSL: lightness capped, saturation boosted, so yellow stays a
+// vivid gold instead of draining to mustard. Chosen knowing yellow lands at
+// ~1.5:1 — a truly legible yellow on light surfaces stops being yellow, so
+// this is the pleasant point of that tradeoff, not an oversight.
+private const val LIGHT_SURFACE_MAX_LIGHTNESS = 0.485f
+private const val LIGHT_SURFACE_SATURATION_BOOST = 0.15f
 
 /**
  * A device's assigned color as it should render on UI surfaces. Stored
  * colors are picked against dark surfaces; on the light theme the brightest
- * ones (yellow) lack contrast, so they are darkened by uniform RGB scaling,
- * which preserves hue — yellow deepens to gold instead of shifting orange
- * (a hue change) or olive (over-darkening). The dark theme and the game
- * canvas (always dark water — use the raw color there) are unaffected.
+ * ones are deepened by an HSL lightness clamp, which preserves hue — yellow
+ * must stay yellow, not shift orange. The dark theme and the game canvas
+ * (always dark water — use the raw color there) are unaffected.
  */
 @Composable
 fun deviceDisplayColor(colorArgb: Long): Color {
     val stored = Color(colorArgb.toInt())
     val lightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
     if (!lightTheme) return stored
-    val lum = stored.luminance()
-    if (lum <= LIGHT_SURFACE_MAX_LUMINANCE) return stored
-    val k = sqrt(LIGHT_SURFACE_MAX_LUMINANCE / lum)
-    return Color(stored.red * k, stored.green * k, stored.blue * k, stored.alpha)
+
+    val r = stored.red
+    val g = stored.green
+    val b = stored.blue
+    val mx = maxOf(r, g, b)
+    val mn = minOf(r, g, b)
+    val lightness = (mx + mn) / 2f
+    if (lightness <= LIGHT_SURFACE_MAX_LIGHTNESS) return stored
+
+    val d = mx - mn
+    if (d == 0f) return stored // achromatic: hue undefined, leave grays alone
+    val saturation = if (lightness > 0.5f) d / (2f - mx - mn) else d / (mx + mn)
+    val hue = 60f * when (mx) {
+        r -> (g - b) / d + (if (g < b) 6f else 0f)
+        g -> (b - r) / d + 2f
+        else -> (r - g) / d + 4f
+    }
+    return Color.hsl(
+        hue = hue % 360f,
+        saturation = (saturation + LIGHT_SURFACE_SATURATION_BOOST).coerceAtMost(1f),
+        lightness = LIGHT_SURFACE_MAX_LIGHTNESS,
+        alpha = stored.alpha
+    )
 }
 
 // =============================================================================
