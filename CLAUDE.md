@@ -2,7 +2,7 @@
 
 ## Project
 
-OpenFugu is an open-source app for the eFugu freediving BLE pressure training device. Kotlin Multiplatform + Compose Multiplatform, targeting modern Android (API 35+) and iOS 16+ (real-device BLE works on both; remaining iOS polish is milestone M4 — IDEAS.md).
+OpenFugu is an open-source app for the eFugu freediving BLE pressure training device. Kotlin Multiplatform + Compose Multiplatform, targeting modern Android (API 35+) and iOS 16+ (real-device BLE works on both).
 
 **Module rule:** platform-neutral code lives in `shared/src/commonMain` (`EFuguStore` state holder, `OpenFuguRoot`/`EFuguApp` routing, all screens, games, exercises, detectors, sessions); anything importing `android.*` lives in `app` (Activity shell, `EFuguViewModel` wrapper, legacy BLE engine); iOS platform code lives in `shared/src/iosMain` (entry point, storage/share/logger actuals — compiles only on macOS, so its errors surface in the iOS CI workflow; keep iosMain minimal). Never import `android.*` (including `androidx.compose.ui.graphics.nativeCanvas`), `java.*`, `String.format`, or `System.currentTimeMillis()` in commonMain — use the `util/` helpers (`fmt`, `nowMillis`, `formatTimestamp`, `AppLog`) and `ui/CanvasText.kt` for canvas text. Platform needs of common code go through interfaces (`storage/Stores.kt`, `ble/BlePlatform.kt`), `expect`/`actual`, or callbacks injected into `OpenFuguRoot`.
 
@@ -17,7 +17,7 @@ Read before making changes:
 Read only when working on BLE layer or protocol investigation:
 - **PROTOCOL.md** — BLE services, characteristics, auth flow, pressure data format
 
-**Keep docs in sync:** When completing a feature, update IDEAS.md. Fully done tasks are deleted from IDEAS.md, not left as checked-off entries (milestone status notes stay). When changing app structure (new packages, navigation changes, new shared components), update ARCHITECTURE.md. When establishing a new convention or pattern, update this file.
+**Keep docs in sync:** When completing a feature, update IDEAS.md. Fully done tasks are deleted from IDEAS.md, not left as checked-off entries. When changing app structure (new packages, navigation changes, new shared components), update ARCHITECTURE.md. When establishing a new convention or pattern, update this file.
 
 ## Build
 

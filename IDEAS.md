@@ -62,6 +62,14 @@ A loose collection of ideas, not a committed roadmap: some are planned, some are
 
 ---
 
+### UI Polish
+Small usability fixes that apply to both platforms:
+
+- [ ] Device-card density with large system fonts — the device identifier and the battery/firmware/hardware rows overflow (worst with long UUID device identifiers, but any device with big fonts is affected)
+- [ ] Keep the screen on during games and exercises (the phone can lock mid-game today)
+
+---
+
 ## Needs Multiple Devices
 
 ### Instructor Multi-Device Monitoring
@@ -300,44 +308,16 @@ Multiplayer games and the Live chart already use assigned device colors. Remaini
 
 ---
 
-## In Progress: iOS Version (Kotlin Multiplatform)
-
-Decided 2026-07-07, work started 2026-07-12. There is real demand: several iPhone-owning friends want the app. **Status: M0–M3 merged to main and released as v1.4.0 (2026-07-15). M3 code is done and Android-retested; the final M3 checkbox — sideload the .ipa and see games run on the iPhone — waits for the phone to arrive.**
-
-**Approach:**
-- One repo, migrated in place — **no fork**. Restructure into `shared/` (core logic, games, Compose Multiplatform UI) plus thin `app/` (Android) and `iosApp/` shells. Rename the repo (e.g. `openfugu`) when it happens; GitHub redirects old URLs.
-- The algorithmic core (PeakDetector, SustainedPressureDetector, RangeTracker, UserProfile, Session/SessionJson — ~700 lines) already has zero Android imports and ports as-is. SPEC.md is the platform-neutral reference.
-- The BLE layer is the real rewrite: Android `BluetoothGatt` → [Kable](https://github.com/JuulLabs/kable) (Kotlin Multiplatform BLE). iOS CoreBluetooth exposes per-device UUIDs instead of MAC addresses, so device identity / device-user pairing keys need rethinking.
-- UI: Compose Multiplatform runs the existing Compose UI on iOS (stable since 2025); the Canvas-based games and PressureChart translate directly.
-
-**Economics (free & open source, no Mac owned; an iPhone 15 is available since 2026-07):**
-- GitHub Actions macOS runners are free for public repos — CI can build the iOS target, run shared-core tests, and upload to TestFlight (fastlane + App Store Connect API key). No Mac required for the pipeline.
-- BLE testing on the own iPhone 15 with the eFugu in hand. Installs without a Mac and without iTunes/Apple software on Windows (done 2026-07-16/17): CI publishes the unsigned `.ipa` plus a SideStore source feed to the rolling `ios-dev-latest` GitHub prerelease, and SideStore on the phone re-signs with a free Apple ID (throwaway account; 7-day signatures auto-refresh on device) — every merge to main arrives as an update in SideStore, no cable. One-time bootstrap: `iloader` running on the Linux dev VM (iPhone USB-passthrough via Proxmox, `usbmuxd` as the driver, GUI over Xvfb+noVNC) installed SideStore; the same recipe re-pairs after an iOS update or reset. TestFlight over the air once the developer account exists. Live device logs via `idevicesyslog`, crash reports via `idevicecrashreport`; the in-app log-export screen is the primary diagnostic regardless of host. Note: Kotlin Apple targets compile only on macOS — iOS-specific compile errors surface in CI, not on the dev VM.
-- Still build in diagnostics (on-screen log, log export via share sheet) from day one so remote testers can report usefully.
-- Distribution needs someone's Apple Developer account ($99/year) — mine or a contributor's. TestFlight external link for friends; builds expire after 90 days.
-
-**Milestones (estimated 2026-07-11, ~11,100 lines total at the time):**
-- **M0 — DONE (2026-07-12, merged to main).** JVM/Android-isms swapped (kotlinx.serialization with unchanged on-disk schema, kotlin.uuid, kotlinx-datetime, snackbar messages, Compose clipboard, AppLog facade, portable `fmt`/`nowMillis`), storage abstracted behind `KeyValueStore`/`FileStore`, MainActivity split into a ~120-line shell + EFuguApp/LiveTab/DevicesTab. Also new: settings screen (theme, simulated-devices gate, About).
-- **M1 — DONE (2026-07-12, branch `kmp-m1`).** `shared/` module (commonMain/androidMain, `com.android.kotlin.multiplatform.library` + Compose Multiplatform 1.9.3); games, exercises, detectors, sessions, chart, most screens moved; canvas text drawing rewritten on TextMeasurer (`ui/CanvasText.kt`) since `nativeCanvas` is Android-only; all 79 unit tests moved and green.
-- **M2 — DONE (2026-07-13, verified on real eFugu hardware).** `KableDeviceConnection` + Kable scanning in commonMain (Kable 0.42.0 — newest Kotlin-2.2-compatible), switchable at runtime via the "Bluetooth engine" developer setting with the legacy `DeviceConnection` as default/fallback. On Android both engines key devices by MAC address, so saved devices/pairings are engine-independent (iOS will differ — see M4).
-- **M3 — DONE (verified on the iPhone 15, iOS 26, 2026-07-17: app boots, games run on simulated devices).** Real-device bring-up found two launch crashes CI and the simulator can't catch: Compose Multiplatform's `PlistSanityCheck` aborts without `CADisableMinimumFrameDurationOnPhone` in Info.plist, and `NSLog` varargs aren't bridged by Kotlin/Native (C variadic, `%@` dereferenced raw Kotlin string bytes) — the iOS logger now renders lines in Kotlin and escapes `%`. Also added: app icon (rendered from `assets/icon-512.svg` — brand SVG sources moved into the repo), per-build version stamping (`1.4.0.<run>`), and the `ios-dev-latest` SideStore-source publishing in `ios.yml`. On-device observations for the polish pile: some colors render slightly off vs Android, layouts are cramped on the smaller screen, and UUID-based device identities are much longer than MACs and overflow their rows (ties into M4's identity work). Turned out to be more refactor than anticipated: EFuguViewModel's portable logic became `EFuguStore` (commonMain) behind a new `BlePlatform` seam (Android keeps the legacy engine + permission checks in `AndroidBlePlatform`; iOS is Kable-only and hides the Bluetooth-engine setting), and EFuguApp/LiveTab/SessionViewer/UserDetail/CalibrationWizard/MockDeviceOverlay moved to commonMain (`BackHandler` from CMP's `ui-backhandler`, share/save-logs as injected callbacks, `OpenFuguRoot` as the shared root). Apple targets + static `OpenFuguShared` framework in `shared`; iosMain actuals (NSUserDefaults/Documents storage, NSLog logger, share sheet, static theme) + `MainViewController`; `iosApp/` SwiftUI shell with XcodeGen (`project.yml`; the .xcodeproj is generated); CI: `ios.yml` builds the unsigned `.ipa` on a macOS runner, `android.yml` compiles + runs the unit tests. Portrait lock and the Bluetooth permission string went into Info.plist already. Keep-screen-on turned out to not exist on Android either — deferred to the sound-and-haptics/polish pile. CI iterations to green (2026-07-14): `Math.random()`/`java.util.Random` in games (JVM-only, invisible on Android builds) → kotlin.random; `Dispatchers.IO` isn't common API → `IoDispatcher` expect/actual; `ExperimentalForeignApi` opt-ins in iosMain; and release linking (LTO) OOMs a 2 GB heap — `org.gradle.jvmargs` is the knob, since Kotlin 2.x runs the Native compiler inside the Gradle daemon (`kotlin.native.jvmArgs` did nothing). Android retest fixes (2026-07-14): Bluetooth power-state listener in `BlePlatform` (radio off drops real connections that GATT callbacks miss; back on auto-rescans), system enable-Bluetooth prompt, Kable promoted to default engine on both platforms, swipe-to-delete made deliberate (red background, 60% threshold, one direction), log saving replaced by the share sheet (app-private storage was unreachable). Calibration gate made actionable (2026-07-15): the gate distinguishes "no user assigned" from "user not calibrated", the gated card opens a dialog that assigns/creates a user or jumps to the calibration wizard, and the multi-device picker labels the specific reason.
-- **M4 — iOS BLE bring-up: core VERIFIED (2026-07-17).** Kable's CoreBluetooth backend works against real eFugu hardware on the iPhone with no code changes — permission prompt, connect, live pressure, and **two devices concurrently in a multiplayer game**. Fixed 2026-07-17 after the first on-device day: `.fugu` import registered (exported UTI + `onOpenURL` → the shared import seam), brand color schemes replacing the Material template purple/pink that iOS fell back to (orange fugu on ocean navy, `ui/theme/`), and Fugu Flow's start screen (was unstartable on iPhone: fixed-height column pushed the Start button off-screen — now a scrollable tap-a-pattern-to-start list). UUID-keyed identity confirmed stable in practice (same eFugu reattaches to its saved device/pairing across relaunches, reboots, and days of builds; app deletion wipes local data by design — nothing to persist). Remaining before calling M4 done: device-card density with large system fonts (UUID and battery/firmware/hardware rows overflow — applies to any device with big fonts, not just iOS). Iteration loop is push-to-main → SideStore update (~20 min).
-- **M5 — TestFlight.** Paperwork.
-
-**What keeps the option cheap meanwhile:** SPEC.md stays platform-neutral, the core stays free of Android imports, protocol knowledge lives in PROTOCOL.md.
-
----
-
 ## Rejected: PWA / Browser Version
 
-Considered and rejected 2026-07-07. A browser app would need Web Bluetooth to talk to the device, and Web Bluetooth only exists in Chromium browsers (Chrome/Edge on desktop and Android). It is unavailable on iOS entirely — every iOS browser is WebKit underneath and Apple does not ship it — so a PWA fails the "runs on any device" goal and specifically excludes the iPhone users who motivate cross-platform work in the first place.
+Considered and rejected 2026-07-07. A browser app would need Web Bluetooth to talk to the device, and Web Bluetooth only exists in Chromium browsers (Chrome/Edge on desktop and Android). It is unavailable on iOS entirely — every iOS browser is WebKit underneath and Apple does not ship it — so a PWA fails the "runs on any device" goal and specifically excludes iPhone users.
 
-If desktop support is ever wanted, it falls out of the Kotlin Multiplatform restructuring above (Compose Multiplatform also targets desktop) rather than a web app; desktop BLE would need its own library choice, but the shared core and SPEC.md keep that door open.
+If desktop support is ever wanted, it falls out of the existing Kotlin Multiplatform structure (Compose Multiplatform also targets desktop) rather than a web app; desktop BLE would need its own library choice, but the shared core and SPEC.md keep that door open.
 
 ---
 
 ## Investigation
-- [ ] Figure out what the `dcdf` BLE characteristic does (exercise start/stop? device config? LED control?) — needs another HCI snoop while using the official app's exercise modes
+- [ ] Figure out what the `dcdf` BLE characteristic does (exercise start/stop? device config? LED control?)
 
 ## Low Priority
 - [ ] Enable R8 minification for release builds — Play warns about the missing deobfuscation file (minify is off); R8 would cut app size substantially. Needs keep-rules for reflection users (kotlinx.serialization, possibly Kable), a `mapping.txt` upload to Play per release, and a full device retest. Pair with the next Kotlin/AGP upgrade session.

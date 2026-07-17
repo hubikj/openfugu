@@ -2,9 +2,9 @@
 
 ## Overview
 
-OpenFugu is an open-source Android app for the eFugu freediving BLE pressure training device. The app connects to one or more eFugu devices via Bluetooth LE, reads real-time nasal pressure data, and provides games, exercises, and visualization tools for equalization training.
+OpenFugu is an open-source app for the eFugu freediving BLE pressure training device. The app connects to one or more eFugu devices via Bluetooth LE, reads real-time nasal pressure data, and provides games, exercises, and visualization tools for equalization training.
 
-The app is built with Kotlin and Compose Multiplatform (Material 3), targeting modern Android (API 35+) and iOS 16+. There are no XML layouts — all UI is Compose. The code is split into a platform-neutral `shared` module (Kotlin Multiplatform) and two thin platform shells: the Android `app` module and the `iosApp` Xcode project. The iOS app currently boots with simulated devices; real-device BLE bring-up is milestone M4 (see IDEAS.md).
+The app is built with Kotlin and Compose Multiplatform (Material 3), targeting modern Android (API 35+) and iOS 16+. There are no XML layouts — all UI is Compose. The code is split into a platform-neutral `shared` module (Kotlin Multiplatform) and two thin platform shells: the Android `app` module and the `iosApp` Xcode project. Real-device BLE works on both platforms.
 
 ## Project Structure
 
