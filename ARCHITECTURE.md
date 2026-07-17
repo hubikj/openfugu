@@ -196,8 +196,14 @@ MIME type. Incoming intents (onCreate or onNewIntent) flow into `EFuguApp`
 as Compose state; `EFuguViewModel.importSession` reads the content URI (with
 a size cap) and hands the text to the common `EFuguStore.importSessionText`,
 which validates and saves the session into history, then the standard session
-viewer opens it. Foreign files are rejected with a snackbar message. (iOS
-document-based import is part of milestone M4.)
+viewer opens it. Foreign files are rejected with a snackbar message.
+
+On iOS the same seam is fed from the other side: `project.yml` declares the
+`.fugu` extension (exported UTI `org.hubik.openfugu.session`,
+`CFBundleDocumentTypes`), SwiftUI's `onOpenURL` passes the sandbox-copied
+file path to `handleIncomingFile` (MainViewController.kt), which reads the
+text and routes it through the identical `importSessionText` path, deleting
+the Documents/Inbox copy afterwards.
 
 ## Key Design Decisions
 

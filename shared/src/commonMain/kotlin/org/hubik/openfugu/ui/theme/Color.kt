@@ -2,10 +2,10 @@ package org.hubik.openfugu.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
-
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Brand palette, derived from the launcher artwork (assets/icon-512.svg):
+// the orange fugu on deep ocean navy. Used by the static color schemes in
+// Theme.kt — the only schemes iOS ever sees (Android normally uses Material
+// You dynamic color instead).
+val FuguOrange = Color(0xFFFFB347)      // fish body
+val FuguOrangeDeep = Color(0xFFB25E00)  // fins, light-theme primary
+val OceanNavy = Color(0xFF0D1B2A)       // launcher background

@@ -34,6 +34,20 @@ targets:
           OpenFugu connects to your eFugu pressure training device over
           Bluetooth.
         ITSAppUsesNonExemptEncryption: false
+        # Register .fugu session files so OpenFugu appears in share sheets
+        # and the Files app. The system copies opened files into our sandbox
+        # (no in-place editing); the import path validates the JSON content.
+        LSSupportsOpeningDocumentsInPlace: false
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: OpenFugu Session
+            LSHandlerRank: Owner
+            LSItemContentTypes: [org.hubik.openfugu.session]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: org.hubik.openfugu.session
+            UTTypeDescription: OpenFugu training session
+            UTTypeConformsTo: [public.json]
+            UTTypeTagSpecification:
+              public.filename-extension: [fugu]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.hubik.openfugu

@@ -8,6 +8,13 @@ struct OpenFuguApp: App {
         WindowGroup {
             ComposeView()
                 .ignoresSafeArea(.keyboard) // Compose has its own keyboard handling
+                .onOpenURL { url in
+                    // .fugu session files (see CFBundleDocumentTypes in
+                    // project.yml); the shared module validates the content.
+                    if url.isFileURL {
+                        MainViewControllerKt.handleIncomingFile(path: url.path)
+                    }
+                }
         }
     }
 }

@@ -1,16 +1,18 @@
 package org.hubik.openfugu.game
 
 import kotlin.random.Random
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -358,7 +360,9 @@ fun FuguFlowScreen(
     val fixedPatterns = remember { buildPatterns() }
 
     var gameState by remember { mutableStateOf<GameState>(GameState.WaitingToStart) }
-    var selectedPatternIndex by remember { mutableIntStateOf(0) }
+    // Index of the pattern being played, remembered so Retry replays it
+    // (Random Mix rebuilds a fresh mix — that is the point of it).
+    var playedPatternIndex by remember { mutableIntStateOf(0) }
     var activePattern by remember { mutableStateOf<FlowPattern?>(null) }
     var gameStartMs by remember { mutableLongStateOf(0L) }
     var elapsedSec by remember { mutableFloatStateOf(0f) }
@@ -381,9 +385,10 @@ fun FuguFlowScreen(
             ("Random Mix" to "Random chain of pattern segments")
     }
 
-    fun resetGame() {
-        val basePattern = if (selectedPatternIndex < fixedPatterns.size) {
-            fixedPatterns[selectedPatternIndex]
+    fun startGame(patternIndex: Int) {
+        playedPatternIndex = patternIndex
+        val basePattern = if (patternIndex < fixedPatterns.size) {
+            fixedPatterns[patternIndex]
         } else {
             buildRandomMix()
         }
@@ -501,37 +506,40 @@ fun FuguFlowScreen(
         ) {
             when (gameState) {
                 is GameState.WaitingToStart -> {
+                    // Tapping a pattern starts the game directly — no separate
+                    // Start button, so the last card is never the only way to
+                    // act. Scrollable: with large system fonts the list is
+                    // taller than an iPhone screen.
+                    val ready = isCalibrated && pressure != null
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
                             .padding(24.dp),
-                        verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             "Choose a Pattern",
                             style = MaterialTheme.typography.headlineSmall
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            if (ready) "Tap a pattern to start"
+                            else "Waiting for pressure data...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         patternEntries.forEachIndexed { index, (name, description) ->
                             val pattern = fixedPatterns.getOrNull(index)
-                            val isSelected = index == selectedPatternIndex
                             val previewColor = MaterialTheme.colorScheme.primary
-                            // Selection = primary border + subtle tint. A filled
-                            // primaryContainer washed out the text and preview
-                            // curve with some dynamic color schemes.
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
-                                    .clickable { selectedPatternIndex = index },
-                                colors = if (isSelected)
-                                    CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                                else CardDefaults.cardColors(),
-                                border = if (isSelected)
-                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                                else null
+                                    .alpha(if (ready) 1f else 0.5f)
+                                    .clickable(enabled = ready) { startGame(index) }
                             ) {
                                 Row(
                                     modifier = Modifier.padding(16.dp),
@@ -564,19 +572,6 @@ fun FuguFlowScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
-
-                        Button(
-                            onClick = {
-                                if (isCalibrated && pressure != null) resetGame()
-                            },
-                            enabled = isCalibrated && pressure != null
-                        ) {
-                            Text(
-                                if (isCalibrated && pressure != null) "Start"
-                                else "Waiting for pressure data..."
-                            )
-                        }
                     }
                 }
 
@@ -659,7 +654,7 @@ fun FuguFlowScreen(
                             OutlinedButton(onClick = { gameState = GameState.WaitingToStart }) {
                                 Text("Patterns")
                             }
-                            Button(onClick = { resetGame() }) {
+                            Button(onClick = { startGame(playedPatternIndex) }) {
                                 Text("Retry")
                             }
                         }
