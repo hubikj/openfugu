@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.DeviceConnectionState
 import org.hubik.openfugu.ble.PressureReading
+import org.hubik.openfugu.ui.deviceDisplayColor
 import org.hubik.openfugu.ble.PressureSource
 import org.hubik.openfugu.util.formatHPa
 
@@ -144,14 +145,14 @@ fun SingleDevicePanel(
                 chartMax = displayMax,
                 isCalibrated = isCalibrated,
                 onRecalibrate = { store.resetCalibration(connection.address) },
-                deviceColor = currentSaved.colorArgb?.let { Color(it.toInt()) }
+                deviceColor = currentSaved.colorArgb?.let { deviceDisplayColor(it) }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             if (chartData.size >= 2) {
                 PressureChart(
-                    lines = listOf(ChartLine(chartData, currentSaved.colorArgb?.let { Color(it.toInt()) })),
+                    lines = listOf(ChartLine(chartData, currentSaved.colorArgb?.let { deviceDisplayColor(it) })),
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
@@ -216,7 +217,7 @@ fun CompactDevicePanel(
                     Box(
                         modifier = Modifier
                             .size(18.dp)
-                            .background(Color(cardColor.toInt()), CircleShape)
+                            .background(deviceDisplayColor(cardColor), CircleShape)
                     )
                 } else {
                     Icon(
@@ -280,7 +281,7 @@ fun CompactDevicePanel(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
-                        color = currentSaved.colorArgb?.let { Color(it.toInt()) }
+                        color = currentSaved.colorArgb?.let { deviceDisplayColor(it) }
                             ?: MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.width(12.dp))
@@ -306,7 +307,7 @@ fun CompactDevicePanel(
             if (chartData.size >= 2) {
                 Spacer(modifier = Modifier.height(4.dp))
                 PressureChart(
-                    lines = listOf(ChartLine(chartData, currentSaved.colorArgb?.let { Color(it.toInt()) })),
+                    lines = listOf(ChartLine(chartData, currentSaved.colorArgb?.let { deviceDisplayColor(it) })),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)

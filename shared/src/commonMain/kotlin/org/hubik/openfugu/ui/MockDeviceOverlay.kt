@@ -136,7 +136,7 @@ fun MockDeviceOverlay(store: EFuguStore) {
                                     // for color-less devices.
                                     val color = savedDevices
                                         .find { it.address == mock.address }?.colorArgb
-                                        ?.let { Color(it.toInt()) }
+                                        ?.let { deviceDisplayColor(it) }
                                         ?: MaterialTheme.colorScheme.primary
                                     MockPressureSlider(
                                         mock = mock,

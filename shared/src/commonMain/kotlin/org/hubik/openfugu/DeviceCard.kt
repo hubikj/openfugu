@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.hubik.openfugu.ble.SavedDevice
 import org.hubik.openfugu.ble.UserProfile
+import org.hubik.openfugu.ui.deviceDisplayColor
 
 // =============================================================================
 // Device card (single-device view)
@@ -48,7 +49,7 @@ fun DeviceCard(
                 Box(
                     modifier = Modifier
                         .size(24.dp)
-                        .background(Color(savedDevice.colorArgb.toInt()), CircleShape)
+                        .background(deviceDisplayColor(savedDevice.colorArgb), CircleShape)
                 )
             } else {
                 Icon(

@@ -7,10 +7,10 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Static brand schemes on the website palette in Color.kt. Role mapping:
-// primary = dive-light cyan (buttons and the data surfaces — pressure
-// readout, default chart line), tertiary = buoy orange (the linked-entity
-// accent, see CLAUDE.md). All surface/container slots are set explicitly:
+// Static brand schemes on the palette in Color.kt. Role mapping: primary =
+// dive-light cyan (buttons, default chart trace), tertiary = the
+// linked-entity accent (see CLAUDE.md) — fish amber in dark, water-teal in
+// light. All surface/container slots are set explicitly:
 // the darkColorScheme()/lightColorScheme() defaults are gray-purple baseline
 // tones that would tint cards and bars away from the water column.
 private val DarkColorScheme = darkColorScheme(
@@ -22,10 +22,10 @@ private val DarkColorScheme = darkColorScheme(
     onSecondary = Color(0xFF16303F),
     secondaryContainer = Color(0xFF24425A),
     onSecondaryContainer = Color(0xFFCADFEC),
-    tertiary = BuoyOrange,
-    onTertiary = Color(0xFF4A1C05),
-    tertiaryContainer = Color(0xFF7A3413),
-    onTertiaryContainer = Color(0xFFFFDACA),
+    tertiary = FuguAmber,
+    onTertiary = Color(0xFF3A2400),
+    tertiaryContainer = Color(0xFF7A4B00),
+    onTertiaryContainer = Color(0xFFFFDCA8),
     background = OceanNavy,
     onBackground = InkLight,
     surface = OceanNavy,
@@ -53,10 +53,10 @@ private val LightColorScheme = lightColorScheme(
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFD3E4EE),
     onSecondaryContainer = Color(0xFF16303F),
-    tertiary = BuoyOrangeDeep,
+    tertiary = WaterTeal,
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFFFDBCB),
-    onTertiaryContainer = Color(0xFF3A1400),
+    tertiaryContainer = Color(0xFFA9EDF6),
+    onTertiaryContainer = Color(0xFF001F26),
     background = Color(0xFFFBFDFE),
     onBackground = InkDark,
     surface = Color(0xFFFBFDFE),

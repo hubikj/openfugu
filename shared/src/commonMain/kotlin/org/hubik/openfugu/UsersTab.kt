@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.hubik.openfugu.ble.DeviceUserPairing
 import org.hubik.openfugu.ble.SavedDevice
+import org.hubik.openfugu.ui.deviceDisplayColor
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.util.fmt
 
@@ -96,7 +97,7 @@ fun UsersTab(
                                         Box(
                                             modifier = Modifier
                                                 .size(8.dp)
-                                                .background(Color(device.colorArgb.toInt()), CircleShape)
+                                                .background(deviceDisplayColor(device.colorArgb), CircleShape)
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
                                     }

@@ -32,6 +32,7 @@ import org.hubik.openfugu.ble.ScanState
 import org.hubik.openfugu.ble.ScannedDevice
 import org.hubik.openfugu.ble.UserProfile
 import org.hubik.openfugu.ui.AppColors
+import org.hubik.openfugu.ui.deviceDisplayColor
 import org.hubik.openfugu.util.nowMillis
 
 // =============================================================================
@@ -378,7 +379,7 @@ fun SavedDeviceRow(
                 Box(
                     modifier = Modifier
                         .size(12.dp)
-                        .background(Color(device.colorArgb.toInt()), CircleShape)
+                        .background(deviceDisplayColor(device.colorArgb), CircleShape)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -535,7 +536,7 @@ fun DevicePickerDialog(
                             Box(
                                 modifier = Modifier
                                     .size(16.dp)
-                                    .background(Color(device.colorArgb.toInt()), CircleShape)
+                                    .background(deviceDisplayColor(device.colorArgb), CircleShape)
                             )
                         } else {
                             Icon(
@@ -714,7 +715,7 @@ fun DeviceEditDialog(
                                             CircleShape
                                         ) else Modifier
                                     )
-                                    .background(Color(colorArgb.toInt()), CircleShape)
+                                    .background(deviceDisplayColor(colorArgb), CircleShape)
                                     .clickable {
                                         selectedColor = if (selectedColor == colorArgb) null else colorArgb
                                     }

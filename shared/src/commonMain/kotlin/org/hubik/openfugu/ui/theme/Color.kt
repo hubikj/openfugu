@@ -9,8 +9,12 @@ import androidx.compose.ui.graphics.Color
 // You dynamic color instead).
 val DiveCyan = Color(0xFF4EC4DE)       // --trace (dark): data, buttons, chart
 val DiveCyanDeep = Color(0xFF2F7590)   // --trace (light)
-val BuoyOrange = Color(0xFFFF8A5C)     // --accent (dark): linked-entity accent
-val BuoyOrangeDeep = Color(0xFFBC4A10) // --accent (light)
+// Accents deviate from the website's --accent on purpose: the fish's own
+// amber sits clearly away from error-red (the site's coral flirts with
+// "warning"), and warm tones dark enough for light surfaces read brown —
+// so the light theme goes cool instead and red stays reserved for errors.
+val FuguAmber = Color(0xFFFFB347)      // dark-theme accent: the fish body
+val WaterTeal = Color(0xFF006874)      // light-theme accent
 val OceanNavy = Color(0xFF0D1B2A)      // --bg-0 (dark), also the icon background
 val OceanDepth = Color(0xFF050C14)     // --bg-1 (dark), deepest surface
 val InkLight = Color(0xFFE4EFF5)       // --ink (dark)

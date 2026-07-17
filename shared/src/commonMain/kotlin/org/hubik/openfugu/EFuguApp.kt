@@ -371,7 +371,13 @@ fun EFuguApp(
                         BadgedBox(
                             badge = {
                                 if (connectedCount > 0) {
-                                    Badge { Text("$connectedCount") }
+                                    // Explicit colors: Badge defaults to the
+                                    // error color, which misreads a device
+                                    // count as a problem.
+                                    Badge(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ) { Text("$connectedCount") }
                                 }
                             }
                         ) {

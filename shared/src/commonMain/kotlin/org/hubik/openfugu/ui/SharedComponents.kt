@@ -5,8 +5,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.sqrt
 import org.hubik.openfugu.util.fmt
 
 // =============================================================================
@@ -19,6 +21,30 @@ object AppColors {
     val warning = Color(0xFFFFA726)
     val inRangeFill = Color(0xFF43A047).copy(alpha = 0.15f)
     val inRangeBorder = Color(0xFF43A047).copy(alpha = 0.4f)
+}
+
+// Ceiling for device-color luminance on light surfaces. Gentle by design:
+// pushing yellow to full WCAG contrast would land it in olive/brown; a
+// slight deepening keeps it unmistakably yellow.
+private const val LIGHT_SURFACE_MAX_LUMINANCE = 0.45f
+
+/**
+ * A device's assigned color as it should render on UI surfaces. Stored
+ * colors are picked against dark surfaces; on the light theme the brightest
+ * ones (yellow) lack contrast, so they are darkened by uniform RGB scaling,
+ * which preserves hue — yellow deepens to gold instead of shifting orange
+ * (a hue change) or olive (over-darkening). The dark theme and the game
+ * canvas (always dark water — use the raw color there) are unaffected.
+ */
+@Composable
+fun deviceDisplayColor(colorArgb: Long): Color {
+    val stored = Color(colorArgb.toInt())
+    val lightTheme = MaterialTheme.colorScheme.background.luminance() > 0.5f
+    if (!lightTheme) return stored
+    val lum = stored.luminance()
+    if (lum <= LIGHT_SURFACE_MAX_LUMINANCE) return stored
+    val k = sqrt(LIGHT_SURFACE_MAX_LUMINANCE / lum)
+    return Color(stored.red * k, stored.green * k, stored.blue * k, stored.alpha)
 }
 
 // =============================================================================
