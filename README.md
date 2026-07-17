@@ -101,7 +101,7 @@ Without a `keystore.properties`, `assembleRelease` produces an unsigned APK.
 
 Apple toolchains only run on macOS, so the iOS app is built by CI: every push to
 `main` publishes an unsigned `.ipa` plus a SideStore source feed to the rolling
-[`ios-dev-latest`](https://github.com/hubikj/openfugu-android/releases/tag/ios-dev-latest)
+[`ios-dev-latest`](https://github.com/hubikj/openfugu/releases/tag/ios-dev-latest)
 release — see its notes for the source URL to add in SideStore.
 
 ## Documentation

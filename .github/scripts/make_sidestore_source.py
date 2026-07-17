@@ -12,7 +12,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
-REPO = "hubikj/openfugu-android"
+REPO = "hubikj/openfugu"
 RELEASE_TAG = "ios-dev-latest"
 
 version, ipa_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]

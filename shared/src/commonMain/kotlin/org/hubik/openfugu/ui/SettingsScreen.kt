@@ -124,7 +124,7 @@ fun SettingsScreen(
             SettingsSectionTitle("About")
             SettingsValueRow("Version", appVersion)
             SettingsValueRow("License", "GPL-3.0")
-            SettingsLinkRow("Source code", "https://github.com/hubikj/openfugu-android")
+            SettingsLinkRow("Source code", "https://github.com/hubikj/openfugu")
             SettingsLinkRow("Website", "https://openfugu.hubik.org")
             SettingsLinkRow("Privacy policy", "https://openfugu.hubik.org/privacy/")
 
