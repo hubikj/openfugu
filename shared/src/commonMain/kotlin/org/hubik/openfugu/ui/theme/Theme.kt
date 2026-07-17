@@ -7,61 +7,72 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Static brand schemes on the palette in Color.kt. All surface/container
-// slots are set explicitly: darkColorScheme() defaults are gray-purple
-// baseline tones that would clash with the navy family. Tertiary is the
-// linked-entity highlight (see CLAUDE.md) and must read brighter than
-// onSurface: aqua against the orange primary.
+// Static brand schemes on the website palette in Color.kt. Role mapping:
+// primary = dive-light cyan (buttons and the data surfaces — pressure
+// readout, default chart line), tertiary = buoy orange (the linked-entity
+// accent, see CLAUDE.md). All surface/container slots are set explicitly:
+// the darkColorScheme()/lightColorScheme() defaults are gray-purple baseline
+// tones that would tint cards and bars away from the water column.
 private val DarkColorScheme = darkColorScheme(
-    primary = FuguOrange,
-    onPrimary = Color(0xFF3A2400),
-    primaryContainer = Color(0xFF7A4B00),
-    onPrimaryContainer = Color(0xFFFFDCA8),
-    secondary = Color(0xFF8FC3DC),
-    onSecondary = Color(0xFF0E2938),
-    secondaryContainer = Color(0xFF1E4356),
-    onSecondaryContainer = Color(0xFFC9E6F5),
-    tertiary = Color(0xFF86D9E4),
-    onTertiary = Color(0xFF00363D),
-    tertiaryContainer = Color(0xFF1F4E55),
-    onTertiaryContainer = Color(0xFFB5EBF2),
+    primary = DiveCyan,
+    onPrimary = Color(0xFF00303C),
+    primaryContainer = Color(0xFF0F4A59),
+    onPrimaryContainer = Color(0xFFBDEBF5),
+    secondary = Color(0xFF8DA9BA),
+    onSecondary = Color(0xFF16303F),
+    secondaryContainer = Color(0xFF24425A),
+    onSecondaryContainer = Color(0xFFCADFEC),
+    tertiary = BuoyOrange,
+    onTertiary = Color(0xFF4A1C05),
+    tertiaryContainer = Color(0xFF7A3413),
+    onTertiaryContainer = Color(0xFFFFDACA),
     background = OceanNavy,
-    onBackground = Color(0xFFE2E8EF),
+    onBackground = InkLight,
     surface = OceanNavy,
-    onSurface = Color(0xFFE2E8EF),
-    surfaceVariant = Color(0xFF23344A),
-    onSurfaceVariant = Color(0xFFBCC8D6),
-    surfaceContainerLowest = Color(0xFF081220),
-    surfaceContainerLow = Color(0xFF122236),
-    surfaceContainer = Color(0xFF16283E),
-    surfaceContainerHigh = Color(0xFF1C3049),
-    surfaceContainerHighest = Color(0xFF233852),
-    outline = Color(0xFF8494A7),
-    outlineVariant = Color(0xFF3A4C61),
-    inverseSurface = Color(0xFFE2E8EF),
-    inverseOnSurface = Color(0xFF2A3648),
-    inversePrimary = FuguOrangeDeep
+    onSurface = InkLight,
+    surfaceVariant = Color(0xFF1E3242),
+    onSurfaceVariant = Color(0xFF8DA9BA),
+    surfaceContainerLowest = OceanDepth,
+    surfaceContainerLow = Color(0xFF12202F),
+    surfaceContainer = Color(0xFF162636),
+    surfaceContainerHigh = Color(0xFF1C2E40),
+    surfaceContainerHighest = Color(0xFF24384C),
+    outline = Color(0xFF5F7A8C),
+    outlineVariant = Color(0xFF31485C),
+    inverseSurface = InkLight,
+    inverseOnSurface = Color(0xFF22303D),
+    inversePrimary = DiveCyanDeep
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = FuguOrangeDeep,
+    primary = DiveCyanDeep,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFDCBE),
-    onPrimaryContainer = Color(0xFF2E1800),
-    secondary = Color(0xFF3E6377),
+    primaryContainer = Color(0xFFC3E7F2),
+    onPrimaryContainer = Color(0xFF06333F),
+    secondary = Color(0xFF4D6B7E),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFC5E1F2),
-    onSecondaryContainer = Color(0xFF0F2B3C),
-    tertiary = Color(0xFF006874),
+    secondaryContainer = Color(0xFFD3E4EE),
+    onSecondaryContainer = Color(0xFF16303F),
+    tertiary = BuoyOrangeDeep,
     onTertiary = Color.White,
-    tertiaryContainer = Color(0xFF9EEFF9),
-    onTertiaryContainer = Color(0xFF001F24),
-    background = Color(0xFFF8FAFD),
-    onBackground = Color(0xFF191C20),
-    surface = Color(0xFFF8FAFD),
-    onSurface = Color(0xFF191C20),
-    surfaceVariant = Color(0xFFDEE3EB),
-    onSurfaceVariant = Color(0xFF42474E)
+    tertiaryContainer = Color(0xFFFFDBCB),
+    onTertiaryContainer = Color(0xFF3A1400),
+    background = Color(0xFFFBFDFE),
+    onBackground = InkDark,
+    surface = Color(0xFFFBFDFE),
+    onSurface = InkDark,
+    surfaceVariant = Color(0xFFDDE9F0),
+    onSurfaceVariant = Color(0xFF4D6B7E),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF2F8FB),
+    surfaceContainer = Color(0xFFECF4F8),
+    surfaceContainerHigh = Color(0xFFE4EEF3),
+    surfaceContainerHighest = Color(0xFFDCE8EF),
+    outline = Color(0xFF6E8798),
+    outlineVariant = Color(0xFFC2D3DD),
+    inverseSurface = Color(0xFF22303D),
+    inverseOnSurface = Color(0xFFEDF4F8),
+    inversePrimary = DiveCyan
 )
 
 /**
