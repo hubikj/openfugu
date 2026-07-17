@@ -20,7 +20,15 @@ on:
       - '*.gradle.kts'
       - 'gradle.properties'
       - '.github/workflows/ios.yml'
+      - '.github/scripts/**'
   workflow_dispatch:
+
+# Back-to-back pushes each queue a full ~15-minute macOS build; let a newer
+# push cancel the obsolete run. Safe for the rolling ios-dev-latest release:
+# the newer run republishes it.
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
