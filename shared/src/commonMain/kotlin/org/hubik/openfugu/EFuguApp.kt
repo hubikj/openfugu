@@ -39,6 +39,7 @@ import org.hubik.openfugu.session.Session
 import org.hubik.openfugu.session.SessionViewerScreen
 import org.hubik.openfugu.ui.CalibrationWizard
 import org.hubik.openfugu.ui.SettingsScreen
+import org.hubik.openfugu.ui.deviceDisplayColor
 import org.hubik.openfugu.ui.theme.hasPlatformColorScheme
 import org.hubik.openfugu.ui.UserDetailScreen
 
@@ -291,7 +292,7 @@ fun EFuguApp(
             val negRange = userProfile?.gameNegativeRange ?: 0.0
             val expert = userProfile?.expertMode ?: false
             val savedDevice = savedDevices.find { it.address == connection.address }
-            val deviceColor = savedDevice?.colorArgb?.let { Color(it.toInt()) }
+            val deviceColor = savedDevice?.colorArgb?.let { deviceDisplayColor(it) }
             val devName = savedDevice?.displayName ?: connection.displayName
             val usrName = userProfile?.name
             val onGameBack = { activeGame = null; activeGameDeviceAddresses = emptyList() }

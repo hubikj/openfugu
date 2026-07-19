@@ -73,6 +73,9 @@ Screens, exercises, and games depend on `ble/PressureSource.kt` (the abstract so
 ### User-facing text
 Spell out words: "equalization" not "EQ", "minimum" not "min", "maximum" not "max". Abbreviations are fine in code identifiers. Use "target range" not "target band".
 
+### Device colors
+A device's stored color must always pass through `deviceDisplayColor()` (`ui/SharedComponents.kt`) before rendering on a UI surface — chart lines, color dots, anywhere the theme background shows. It dims over-bright colors on the light theme. The only exception is the game canvas (always dark water): use the raw stored color there.
+
 ### Linked entity colors
 When showing a linked entity next to a primary entity, the primary entity for that tab gets `tertiary` color (brighter), the linked entity stays default.
 - Devices/Live tabs: device name = `tertiary`, user name = default

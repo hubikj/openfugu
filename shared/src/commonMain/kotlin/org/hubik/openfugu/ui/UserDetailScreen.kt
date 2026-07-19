@@ -13,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -119,7 +118,7 @@ fun UserDetailScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(12.dp)
-                                            .background(Color(colorArgb.toInt()), CircleShape)
+                                            .background(deviceDisplayColor(colorArgb), CircleShape)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                 }

@@ -11,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.hubik.openfugu.ChartLine
@@ -19,6 +18,7 @@ import org.hubik.openfugu.PressureChart
 import org.hubik.openfugu.EFuguStore
 import org.hubik.openfugu.ui.AppColors
 import org.hubik.openfugu.ui.StatRow
+import org.hubik.openfugu.ui.deviceDisplayColor
 import org.hubik.openfugu.util.FileStampFormat
 import org.hubik.openfugu.util.LongDateTimeFormat
 import org.hubik.openfugu.util.fmt
@@ -110,7 +110,7 @@ fun SessionViewerScreen(
             // Chart
             val chartLines = when (session) {
                 is Session.MultiplayerGameSession -> session.players.sortedBy { it.rank }.map { p ->
-                    ChartLine(p.pressureTrace, p.colorArgb?.let { Color(it.toInt()) })
+                    ChartLine(p.pressureTrace, p.colorArgb?.let { deviceDisplayColor(it) })
                 }
                 else -> if (session.pressureTrace.size >= 2) listOf(ChartLine(session.pressureTrace)) else emptyList()
             }

@@ -102,7 +102,7 @@ fun CalibrationWizard(
     val effectiveAddress = pinnedAddress ?: selectedAddress ?: autoAddress
     val selectedConnection = effectiveAddress?.let { addr -> connectedList.find { it.address == addr } }
     val selectedSaved = savedDevices.find { it.address == effectiveAddress }
-    val deviceLineColor = selectedSaved?.colorArgb?.let { Color(it.toInt()) }
+    val deviceLineColor = selectedSaved?.colorArgb?.let { deviceDisplayColor(it) }
 
     Scaffold(
         topBar = {
